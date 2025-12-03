@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id         String    @id @default(uuid())
+  fullName   String
+  email      String    @unique
+  password   String
+  avatar     String?
+  banId      String?
+  roleId     String
+  isDeleted  Boolean   @default(false)
+  timeBan    DateTime?
+  timeUnBan  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  role       Role      @relation(fields: [roleId], references: [id])
+  ban        Ban?      @relation(fields: [banId], references: [id])
+
+  @@map("users")
+}
+
+model Role {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  users       User[]
+  permissions Permission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id        String   @id @default(uuid())
+  api       String
+  method    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roles     Role[]
+
+  @@map("permissions")
+}
+
+model Ban {
+  id        String    @id @default(uuid())
+  reason    String
+  isDeleted Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  users     User[]
+
+  @@map("bans")
+}
