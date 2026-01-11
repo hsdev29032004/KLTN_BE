@@ -21,7 +21,13 @@ export const CurrentUser = createParamDecorator(
       where: { id: payload.sub },
       include: {
         role: {
-          include: { permissions: true },
+          include: {
+            rolePermissions: {
+              include: {
+                permission: true,
+              },
+            },
+          },
         },
       },
     });
@@ -30,7 +36,7 @@ export const CurrentUser = createParamDecorator(
     return {
       ...user,
       role: user.role,
-      permissions: user.role?.permissions || [],
+      rolePermissions: user.role?.rolePermissions || [],
     };
   },
 );

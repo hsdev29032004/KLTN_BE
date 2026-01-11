@@ -7,19 +7,21 @@ datasource db {
 }
 
 model User {
-  id         String    @id @default(uuid())
-  fullName   String
-  email      String    @unique
-  password   String
-  avatar     String?
-  banId      String?
-  roleId     String
-  isDeleted  Boolean   @default(false)
-  timeBan    DateTime?
-  timeUnBan  DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  deletedAt  DateTime?
+  id           String    @id @default(uuid())
+  fullName     String
+  email        String    @unique
+  password     String
+  avatar       String?
+  banId        String?
+  roleId       String
+  refreshToken String?
+  money        Int?      @default(0)
+  isDeleted    Boolean   @default(false)
+  timeBan      DateTime?
+  timeUnBan    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
 
   role       Role      @relation(fields: [roleId], references: [id])
   ban        Ban?      @relation(fields: [banId], references: [id])
@@ -28,27 +30,41 @@ model User {
 }
 
 model Role {
-  id          String       @id @default(uuid())
-  name        String       @unique
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id          String             @id @default(uuid())
+  name        String             @unique
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
 
-  users       User[]
-  permissions Permission[]
+  users            User[]
+  rolePermissions  RolePermission[]
 
   @@map("roles")
 }
 
 model Permission {
-  id        String   @id @default(uuid())
-  api       String
-  method    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String             @id @default(uuid())
+  api       String             @unique
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
 
-  roles     Role[]
+  rolePermissions  RolePermission[]
 
   @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String
+  permissionId String
+  methods      String   // "GET|POST|PUT|DELETE|PATCH"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
 }
 
 model Ban {
