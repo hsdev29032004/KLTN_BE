@@ -15,29 +15,26 @@ async function main() {
   console.log('🚀 Starting database initialization...');
 
   console.log('📝 Creating permissions...');
-  const permissions = [
-    { api: '/api/users', method: 'GET|POST' },
-    { api: '/api/users/:id', method: 'GET|PUT|DELETE' },
-    { api: '/api/roles', method: 'GET|POST' },
-    { api: '/api/roles/:id', method: 'GET|PUT|DELETE' },
-    { api: '/api/permissions', method: 'GET|POST' },
-    { api: '/api/bans', method: 'GET|POST' },
-    { api: '/api/bans/:id', method: 'GET|PUT|DELETE' },
+  const permissionApis = [
+    '/api/users',
+    '/api/roles',
+    '/api/permissions',
+    '/api/bans',
   ];
 
   const createdPermissions = [];
-  for (const perm of permissions) {
+  for (const api of permissionApis) {
     const existing = await prisma.permission.findFirst({
-      where: { api: perm.api, method: perm.method },
+      where: { api },
     });
 
     if (!existing) {
-      const created = await prisma.permission.create({ data: perm });
+      const created = await prisma.permission.create({ data: { api } });
       createdPermissions.push(created);
-      console.log(`✅ Created permission: ${perm.method} ${perm.api}`);
+      console.log(`✅ Created permission: ${api}`);
     } else {
       createdPermissions.push(existing);
-      console.log(`⏭️  Permission already exists: ${perm.method} ${perm.api}`);
+      console.log(`⏭️  Permission already exists: ${api}`);
     }
   }
 
@@ -47,15 +44,10 @@ async function main() {
 
   if (!adminRole) {
     const created = await prisma.role.create({
-      data: {
-        name: 'Admin',
-        permissions: {
-          connect: createdPermissions.map(p => ({ id: p.id })),
-        },
-      },
+      data: { name: 'Admin' },
     });
     adminRoleId = created.id;
-    console.log('✅ Created role: Admin with all permissions');
+    console.log('✅ Created role: Admin');
   } else {
     adminRoleId = adminRole.id;
     console.log('⏭️  Role already exists: Admin');
@@ -65,22 +57,56 @@ async function main() {
   let userRoleId;
 
   if (!userRole) {
-    const userPermissions = createdPermissions.filter(p =>
-      p.api.includes('/api/users/:id') && p.method.includes('GET')
-    );
     const created = await prisma.role.create({
-      data: {
-        name: 'User',
-        permissions: {
-          connect: userPermissions.map(p => ({ id: p.id })),
-        },
-      },
+      data: { name: 'User' },
     });
     userRoleId = created.id;
-    console.log('✅ Created role: User with limited permissions');
+    console.log('✅ Created role: User');
   } else {
     userRoleId = userRole.id;
     console.log('⏭️  Role already exists: User');
+  }
+
+  console.log('\n🔗 Creating role-permission mappings...');
+  // Admin có tất cả permissions với tất cả methods
+  for (const permission of createdPermissions) {
+    const existing = await prisma.rolePermission.findFirst({
+      where: { roleId: adminRoleId, permissionId: permission.id },
+    });
+
+    if (!existing) {
+      await prisma.rolePermission.create({
+        data: {
+          roleId: adminRoleId,
+          permissionId: permission.id,
+          methods: 'GET|POST|PUT|DELETE|PATCH',
+        },
+      });
+      console.log(`✅ Admin -> ${permission.api} [ALL methods]`);
+    } else {
+      console.log(`⏭️  Admin -> ${permission.api} [already exists]`);
+    }
+  }
+
+  // User chỉ có quyền GET /api/users/:id
+  const userPermission = createdPermissions.find(p => p.api === '/api/users/:id');
+  if (userPermission) {
+    const existing = await prisma.rolePermission.findFirst({
+      where: { roleId: userRoleId, permissionId: userPermission.id },
+    });
+
+    if (!existing) {
+      await prisma.rolePermission.create({
+        data: {
+          roleId: userRoleId,
+          permissionId: userPermission.id,
+          methods: 'GET',
+        },
+      });
+      console.log(`✅ User -> ${userPermission.api} [GET]`);
+    } else {
+      console.log(`⏭️  User -> ${userPermission.api} [already exists]`);
+    }
   }
 
   console.log('\n🚫 Creating ban records...');
