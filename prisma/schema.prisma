@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String    @id @default(uuid())
+  fullName     String
+  email        String    @unique
+  password     String
+  avatar       String?
+  banId        String?
+  roleId       String
+  refreshToken String?
+  isDeleted    Boolean   @default(false)
+  timeBan      DateTime?
+  timeUnBan    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  role       Role      @relation(fields: [roleId], references: [id])
+  ban        Ban?      @relation(fields: [banId], references: [id])
+
+  @@map("users")
+}
+
+model Role {
+  id          String             @id @default(uuid())
+  name        String             @unique
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  users            User[]
+  rolePermissions  RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id        String             @id @default(uuid())
+  api       String             @unique
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  rolePermissions  RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String
+  permissionId String
+  methods      String   // "GET|POST|PUT|DELETE|PATCH"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Ban {
+  id        String    @id @default(uuid())
+  reason    String
+  isDeleted Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  users     User[]
+
+  @@map("bans")
+}

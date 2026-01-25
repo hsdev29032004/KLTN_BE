@@ -1,0 +1,1 @@
+người dùng đã mua khóa học sẽ có thể đánh giá, tuy nhiên khi đánh giá xong sẽ không được hoàn tiền nữa vì đã có tính năng báo cáo khóa học, người dùng có thể báo cáo khóa học trước và thực hiện làm QT-6-Refund
