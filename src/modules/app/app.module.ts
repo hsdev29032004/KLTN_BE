@@ -1,7 +1,9 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { LockAmountCronService } from '@/infras/cron/lock-amount-cron.service';
 import { AppLogger } from '@/infras/loggers/logger.service';
 import { AuthModule } from '../auth/auth.module';
 import { RoleModule } from '../role/role.module';
@@ -12,10 +14,11 @@ import { PrismaService } from '@/infras/prisma/prisma.service';
 import { AuthMiddleware } from '@/core/middlewares/auth.middleware';
 
 @Module({
-  imports: [AuthModule, RoleModule, PermissionModule],
+  imports: [ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule],
   controllers: [AppController],
   providers: [
     AppService,
+    LockAmountCronService,
     AppLogger,
     PrismaService,
     {
