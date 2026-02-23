@@ -52,6 +52,19 @@ export class AuthController {
     };
   }
 
+  @SkipPermission()
+  @Post('logout')
+  async logout(@User() user: any, @Res({ passthrough: true }) res: Response) {
+    await this.authService.logout(user.id);
+
+    res.clearCookie('access_token');
+    res.clearCookie('refresh_token');
+
+    return {
+      message: 'Đăng xuất thành công!',
+    };
+  }
+
   @PublicAPI()
   @Post('refresh-token')
   async refreshToken(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
