@@ -21,11 +21,19 @@ export class ResponseInterceptor<T> implements NestInterceptor<T, Response<T>> {
         if (data && typeof data === 'object' && 'message' in data && 'data' in data) {
           return data;
         }
-        
+
+        // Nếu data có message nhưng không có data, thêm data: null
+        if (data && typeof data === 'object' && 'message' in data) {
+          return {
+            ...data,
+            data: null,
+          };
+        }
+
         // Nếu không thì wrap vào format mặc định với message rỗng
         return {
           message: '',
-          data: data || {},
+          data: data || null,
         };
       }),
     );
