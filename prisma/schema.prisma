@@ -39,17 +39,13 @@ model User {
 
   reviews           CourseReview[]
 
-  deposits          Deposit[]
+  transactions      Transaction[]
 
   reports           CourseReport[]
 
   processedReports  CourseReport[] @relation("processor")
 
-  lockAmounts       LockAmount[]
-
   coursePurchases    CoursePurchase[]
-
-  withdrawalRequests     WithdrawalRequest[]
 
   @@map("users")
 }
@@ -133,8 +129,6 @@ model Course {
   reviews      CourseReview[]
 
   reports      CourseReport[]
-
-  lockAmounts  LockAmount[]
 
   purchases   CoursePurchase[]
 
@@ -277,26 +271,7 @@ model CourseReview {
   @@map("course_reviews")
 }
 
-enum DepositStatus {
-  pending
-  completed
-  failed
-}
 
-model Deposit {
-  id        String        @id @default(uuid())
-  userId    String
-  amount    Int
-  status    DepositStatus @default(pending)
-  isDeleted Boolean       @default(false)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  deletedAt DateTime?
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@map("deposits")
-}
 
 enum CourseReportStatus {
   pending
@@ -323,24 +298,6 @@ model CourseReport {
   @@map("course_reports")
 }
 
-model LockAmount {
-  id         String   @id @default(uuid())
-  userId     String
-  courseId   String
-  amount     Int
-  unlockTime DateTime
-  isLock     Boolean  @default(true)
-  isDeleted  Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  deletedAt  DateTime?
-
-  user   User   @relation(fields: [userId], references: [id])
-  course Course @relation(fields: [courseId], references: [id])
-
-  @@map("lock_amounts")
-}
-
 enum CoursePurchaseStatus {
   purchased
   refund_requested
@@ -364,26 +321,62 @@ model CoursePurchase {
   @@map("course_purchases")
 }
 
-enum WithdrawalRequestStatus {
-  pending
-  approved
-  rejected
-  completed
+enum TransactionType {
+  deposit
+  withdrawal
 }
 
-model WithdrawalRequest {
-  id            String                   @id @default(uuid())
+enum TransactionStatus {
+  pending
+  completed
+  failed
+  approved
+  rejected
+}
+
+model Transaction {
+  id            String             @id @default(uuid())
   userId        String
-  bankName      String
-  accountNumber String
+  type          TransactionType
   amount        Int
-  status        WithdrawalRequestStatus  @default(pending)
-  isDeleted     Boolean                  @default(false)
-  createdAt     DateTime                 @default(now())
-  updatedAt     DateTime                 @updatedAt
+  bankName      String?
+  accountNumber String?
+  status        TransactionStatus  @default(pending)
+  isDeleted     Boolean            @default(false)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
   deletedAt     DateTime?
 
   user User @relation(fields: [userId], references: [id])
 
-  @@map("withdrawal_requests")
+  @@map("transactions")
+}
+
+model System {
+  id            String   @id @default("system")
+  timeRefund    Int
+  limitRefund   Int
+  comissionRate Decimal  @db.Decimal(5,2)
+  term          String
+  updatedAt     DateTime @updatedAt
+
+  banks         Bank[]
+
+  @@map("systems")
+}
+
+model Bank {
+  id         String   @id @default(uuid())
+  systemId   String
+  bankNumber String
+  bankName   String
+  recipient  String
+  isDeleted  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
+
+  system     System   @relation(fields: [systemId], references: [id], onDelete: Cascade)
+
+  @@map("banks")
 }
