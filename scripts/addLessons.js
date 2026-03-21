@@ -58,7 +58,7 @@ function generateLessonNames(courseName, count) {
 async function main() {
   console.log('📚 Starting to add lessons to courses...');
 
-  const publishedBy = 'a1bc8386-b2d8-480d-ad41-d4b2da939abf';
+  const publishedBy = '12a95338-4547-4cf7-8d3e-b0b65005e30d';
 
   // Lấy tất cả các khóa học
   const courses = await prisma.course.findMany({

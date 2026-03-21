@@ -24,11 +24,11 @@ export class ReviewService {
     });
     if (!course) throw new NotFoundException('Khóa học không tồn tại');
 
-    // Kiểm tra đã mua khóa học chưa
-    const purchased = await this.prisma.coursePurchase.findFirst({
-      where: { userId, courseId: dto.courseId, isDeleted: false },
+    // Kiểm tra đã mua khóa học chưa — dùng bảng UserCourse
+    const userCourse = await this.prisma.userCourse.findFirst({
+      where: { userId, courseId: dto.courseId },
     });
-    if (!purchased)
+    if (!userCourse)
       throw new ForbiddenException('Bạn phải mua khóa học trước khi đánh giá');
 
     // Mỗi user chỉ review 1 lần

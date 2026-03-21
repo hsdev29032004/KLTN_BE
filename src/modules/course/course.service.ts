@@ -107,7 +107,7 @@ export class CourseService {
           orderBy: { createdAt: 'asc' },
         },
         _count: {
-          select: { reviews: true, purchases: true },
+          select: { reviews: true, userCourses: true },
         },
         reviews: {
           where: { isDeleted: false },

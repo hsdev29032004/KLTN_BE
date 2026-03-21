@@ -45,23 +45,26 @@ function generateContent() {
 async function main() {
   console.log('📚 Starting to add courses...');
 
-  const userId = 'a1bc8386-b2d8-480d-ad41-d4b2da939abk';
-  const publishedBy = 'a1bc8386-b2d8-480d-ad41-d4b2da939abf';
+  const userId = '12a95338-4547-4cf7-8d3e-b0b65005e30l';
+  const publishedBy = '12a95338-4547-4cf7-8d3e-b0b65005e30d';
 
   const coursesData = [
     {
       name: 'Khóa học NextJS 14-ReactJS-Typescript thực chiến',
+      slug: 'khoa-hoc-nextjs-14-reactjs-typescript-thuc-chien',
       price: 299000,
       thumbnail:
         'https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEiqiYsZyeqxncmfFoFqeptTj_Ji8ac0H6XXOnPOCbdB2Ye6etBjbs2nqAqTDu6sPJJ46W8bm4mXAVicyfRA6Q-XqNwHLfG_6CiBYe2ZIFKKSv-n6Fcc3bjFxXpW-LOj_BIv7Zu3GWAetjOqGPJEvDcScezGwfdgPnJ0dRZZPIWnOGYGH9r2nVs9I3W8UjY/s320-rw/5712300_b951_5.jpg',
     },
     {
       name: 'NestJS: Cẩm nang toàn diện dành cho nhà phát triển',
+      slug: 'nestjs-cam-nang-toan-dien-danh-cho-nha-phat-trien',
       price: 349000,
       thumbnail: 'https://img-c.udemycdn.com/course/480x270/4174580_dd1c.jpg',
     },
     {
       name: 'HRBP – Đối tác Kinh Doanh Xuất Sắc',
+      slug: 'hrbp-doi-tac-kinh-doanh-xuat-sac',
       price: 199000,
       thumbnail:
         'https://media.licdn.com/dms/image/v2/D4D12AQFr1Dw11W0_UA/article-cover_image-shrink_600_2000/article-cover_image-shrink_600_2000/0/1730813124391?e=2147483647&v=beta&t=bo7LmJhsq-V4diNXGITc5bH_Ub-HZcX_--qOZeAdokI',

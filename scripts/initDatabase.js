@@ -140,6 +140,7 @@ async function main() {
       data: {
         fullName: 'Admin User',
         email: 'admin@example.com',
+        slug: 'admin-user',
         password: hashedPassword,
         roleId: adminRoleId,
         avatar: 'https://i.pravatar.cc/150?img=1',
@@ -156,6 +157,7 @@ async function main() {
       data: {
         fullName: 'Normal User',
         email: 'user@example.com',
+        slug: 'normal-user',
         password: hashedPassword,
         roleId: userRoleId,
         avatar: 'https://i.pravatar.cc/150?img=2',
@@ -172,6 +174,7 @@ async function main() {
       data: {
         fullName: 'Banned User',
         email: 'banned@example.com',
+        slug: 'banned-user',
         password: hashedPassword,
         roleId: userRoleId,
         banId: createdBans[0].id,
