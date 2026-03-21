@@ -40,7 +40,7 @@ function generateMaterialName(lessonName, type, index) {
       'Thực hành',
       'Luyện tập',
     ];
-    return `${baseName} - ${videoSuffixes[index % videoSuffixes.length]} (Video)`;
+    return `${baseName} - ${videoSuffixes[index % videoSuffixes.length]}`;
   } else {
     const imageSuffixes = [
       'Sơ đồ',
@@ -48,7 +48,7 @@ function generateMaterialName(lessonName, type, index) {
       'Ví dụ',
       'Tài liệu',
     ];
-    return `${baseName} - ${imageSuffixes[index % imageSuffixes.length]} (Ảnh)`;
+    return `${baseName} - ${imageSuffixes[index % imageSuffixes.length]}`;
   }
 }
 

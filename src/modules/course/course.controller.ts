@@ -1,34 +1,27 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { CourseService } from './course.service';
-import { CreateCourseDto } from './dto/create-course.dto';
-import { UpdateCourseDto } from './dto/update-course.dto';
+import { PublicAPI } from '@/common/decorators/public-api.decorator';
 
 @Controller('course')
 export class CourseController {
-  constructor(private readonly courseService: CourseService) {}
+  constructor(private readonly courseService: CourseService) { }
 
-  @Post()
-  create(@Body() createCourseDto: CreateCourseDto) {
-    return this.courseService.create(createCourseDto);
-  }
-
+  @PublicAPI()
   @Get()
   findAll() {
     return this.courseService.findAll();
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.courseService.findOne(+id);
+  // Khai báo trước /:slug để tránh bị match nhầm
+  @PublicAPI()
+  @Get('user/:userId')
+  findByUserId(@Param('userId') userId: string) {
+    return this.courseService.findByUserId(userId);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCourseDto: UpdateCourseDto) {
-    return this.courseService.update(+id, updateCourseDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.courseService.remove(+id);
+  @PublicAPI()
+  @Get(':slug')
+  findBySlug(@Param('slug') slug: string) {
+    return this.courseService.findBySlug(slug);
   }
 }

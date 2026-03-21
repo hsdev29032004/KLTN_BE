@@ -8,13 +8,15 @@ import { AppLogger } from '@/infras/loggers/logger.service';
 import { AuthModule } from '../auth/auth.module';
 import { RoleModule } from '../role/role.module';
 import { PermissionModule } from '../permission/permission.module';
+import { CourseModule } from '../course/course.module';
+import { ReviewModule } from '../review/review.module';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { PermissionGuard } from '@/common/guards/permission.guard';
 import { PrismaService } from '@/infras/prisma/prisma.service';
 import { AuthMiddleware } from '@/core/middlewares/auth.middleware';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule],
+  imports: [ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule, CourseModule, ReviewModule],
   controllers: [AppController],
   providers: [
     AppService,

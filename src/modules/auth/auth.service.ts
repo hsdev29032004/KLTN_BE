@@ -100,6 +100,7 @@ export class AuthService {
         email,
         password: hash,
         fullName,
+        slug: fullName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
         roleId: defaultRole.id,
       },
       include: {
@@ -112,6 +113,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       fullName: user.fullName,
+      slug: user.slug,
       avatar: user.avatar,
       role: user.role,
     };

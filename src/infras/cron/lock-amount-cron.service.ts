@@ -6,63 +6,82 @@ import { PrismaService } from '../../infras/prisma/prisma.service';
 export class LockAmountCronService {
   private readonly logger = new Logger(LockAmountCronService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   @Cron('0 0 * * *') // Chạy mỗi ngày lúc 0h00
   async handleUnlockAmounts() {
-    this.logger.log('Starting unlock amounts cron job');
+    this.logger.log('Starting settle purchases cron job');
 
     try {
       const now = new Date();
 
-      // Lấy tất cả bản ghi LockAmount có isLock = true và unlockTime <= now
-      const lockAmountsToUnlock = await this.prisma.lockAmount.findMany({
-        where: {
-          isLock: true,
-          unlockTime: {
-            lte: now,
-          },
-        },
+      // Lấy cấu hình hệ thống để biết thời hạn hoàn tiền
+      const system = await this.prisma.system.findUnique({
+        where: { id: 'system' },
       });
 
-      if (lockAmountsToUnlock.length === 0) {
-        this.logger.log('No lock amounts to unlock');
+      if (!system) {
+        this.logger.warn('System config not found, skipping cron job');
         return;
       }
 
-      this.logger.log(`Found ${lockAmountsToUnlock.length} lock amounts to unlock`);
+      // Mốc thời gian: hóa đơn tạo trước đây đúng timeRefund ngày
+      const refundDeadline = new Date(now);
+      refundDeadline.setDate(refundDeadline.getDate() - system.timeRefund);
 
-      // Xử lý từng bản ghi
-      for (const lockAmount of lockAmountsToUnlock) {
+      // Lùi thêm 1 ngày để lấy đúng cửa sổ 24h (tránh xử lý lại hóa đơn cũ hơn)
+      const windowStart = new Date(refundDeadline);
+      windowStart.setDate(windowStart.getDate() - 1);
+
+      // Lấy hóa đơn có createdAt rơi đúng vào khoảng hết hạn hoàn tiền hôm nay
+      const purchasesToSettle = await this.prisma.coursePurchase.findMany({
+        where: {
+          status: 'purchased',
+          isDeleted: false,
+          createdAt: {
+            gt: windowStart,
+            lte: refundDeadline,
+          },
+        },
+        include: {
+          course: true,
+        },
+      });
+
+      if (purchasesToSettle.length === 0) {
+        this.logger.log('No purchases to settle today');
+        return;
+      }
+
+      this.logger.log(`Found ${purchasesToSettle.length} purchases to settle`);
+
+      // Xử lý từng hóa đơn
+      for (const purchase of purchasesToSettle) {
         await this.prisma.$transaction(async (tx) => {
-          // Cập nhật user: giảm lockAmount, tăng availableAmount
-          await tx.user.update({
-            where: { id: lockAmount.userId },
-            data: {
-              lockAmount: {
-                decrement: lockAmount.amount,
-              },
-              availableAmount: {
-                increment: lockAmount.amount,
-              },
-            },
-          });
+          // Tính tiền thực nhận của giảng viên sau khi trừ hoa hồng
+          const commissionAmount = Math.floor(
+            (purchase.amount * Number(system.comissionRate)) / 100,
+          );
+          const instructorAmount = purchase.amount - commissionAmount;
 
-          // Cập nhật LockAmount: isLock = false
-          await tx.lockAmount.update({
-            where: { id: lockAmount.id },
+          // Chuyển tiền từ lockAmount sang availableAmount cho giảng viên
+          await tx.user.update({
+            where: { id: purchase.course.userId },
             data: {
-              isLock: false,
+              lockAmount: { decrement: instructorAmount },
+              availableAmount: { increment: instructorAmount },
             },
           });
         });
 
-        this.logger.log(`Unlocked ${lockAmount.amount} for user ${lockAmount.userId}`);
+        this.logger.log(
+          `Settled purchase ${purchase.id}: instructor ${purchase.course.userId} received ${purchase.amount - Math.floor((purchase.amount * Number(system.comissionRate)) / 100)}`,
+        );
       }
 
-      this.logger.log('Unlock amounts cron job completed successfully');
+      this.logger.log('Settle purchases cron job completed successfully');
     } catch (error) {
-      this.logger.error('Error in unlock amounts cron job', error);
+      this.logger.error('Error in settle purchases cron job', error);
     }
   }
 }

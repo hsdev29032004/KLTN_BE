@@ -7,82 +7,71 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  fullName     String
-  email        String    @unique
-  password     String
-  avatar       String?
-  banId        String?
-  roleId       String
-  refreshToken String?
-  availableAmount Int? @default(0)
-  lockAmount      Int? @default(0)
-  isDeleted    Boolean   @default(false)
-  timeBan      DateTime?
-  timeUnBan    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
-
-  role       Role      @relation(fields: [roleId], references: [id])
-  ban        Ban?      @relation(fields: [banId], references: [id])
-
-  courses         Course[]
-  publishedCourses Course[] @relation("CoursePublishedBy")
-
-    publishedLessons Lesson[] @relation("LessonPublishedBy")
-    publishedLessonMaterials LessonMaterial[] @relation("LessonMaterialPublishedBy")
-
-  ticketsAsSender   Ticket[] @relation("TicketSender")
-  ticketsAsReceiver Ticket[] @relation("TicketReceiver")
-  messages          TicketMessage[]
-
-  reviews           CourseReview[]
-
-  transactions      Transaction[]
-
-  reports           CourseReport[]
-
-  processedReports  CourseReport[] @relation("processor")
-
-  coursePurchases    CoursePurchase[]
+  id                       String           @id @default(uuid())
+  fullName                 String
+  email                    String           @unique
+  password                 String
+  avatar                   String?
+  banId                    String?
+  roleId                   String
+  isDeleted                Boolean          @default(false)
+  timeBan                  DateTime?
+  timeUnBan                DateTime?
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+  deletedAt                DateTime?
+  refreshToken             String?
+  availableAmount          Int?             @default(0)
+  lockAmount               Int?             @default(0)
+  slug                     String           @unique
+  coursePurchases          CoursePurchase[]
+  processedReports         CourseReport[]   @relation("processor")
+  reports                  CourseReport[]
+  reviews                  CourseReview[]
+  publishedCourses         Course[]         @relation("CoursePublishedBy")
+  courses                  Course[]
+  publishedLessonMaterials LessonMaterial[] @relation("LessonMaterialPublishedBy")
+  publishedLessons         Lesson[]         @relation("LessonPublishedBy")
+  messages                 TicketMessage[]
+  ticketsAsReceiver        Ticket[]         @relation("TicketReceiver")
+  ticketsAsSender          Ticket[]         @relation("TicketSender")
+  transactions             Transaction[]
+  ban                      Ban?             @relation(fields: [banId], references: [id])
+  role                     Role             @relation(fields: [roleId], references: [id])
 
   @@map("users")
 }
 
 model Role {
-  id          String             @id @default(uuid())
-  name        String             @unique
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-
-  users            User[]
-  rolePermissions  RolePermission[]
+  id              String           @id @default(uuid())
+  name            String           @unique
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  rolePermissions RolePermission[]
+  users           User[]
 
   @@map("roles")
 }
 
 model Permission {
-  id        String             @id @default(uuid())
-  api       String             @unique
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
-
-  rolePermissions  RolePermission[]
+  id              String           @id @default(uuid())
+  api             String           @unique
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  rolePermissions RolePermission[]
 
   @@map("permissions")
 }
 
 model RolePermission {
-  id           String   @id @default(uuid())
+  id           String     @id @default(uuid())
   roleId       String
   permissionId String
-  methods      String   // "GET|POST|PUT|DELETE|PATCH"
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  methods      String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, permissionId])
   @@map("role_permissions")
@@ -95,44 +84,242 @@ model Ban {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
-
   users     User[]
 
   @@map("bans")
 }
 
 model Course {
-  id           String    @id @default(uuid())
-  name         String
-  price        Int
-  thumbnail    String
-  content      String
-  slug         String   @unique
-  description  String
-  status       CourseStatus @default(draft)
-  studentCount Int      @default(0)
-  star         Decimal  @db.Decimal(2,1)
-  userId       String
-  publishedBy  String?
-  isDeleted    Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  deletedAt    DateTime?
-  publishedAt  DateTime?
-
-  user         User     @relation(fields: [userId], references: [id])
-  publisher    User?    @relation("CoursePublishedBy", fields: [publishedBy], references: [id])
-  courseTopics CourseTopic[]
-
-  lessons      Lesson[]
-
-  reviews      CourseReview[]
-
-  reports      CourseReport[]
-
-  purchases   CoursePurchase[]
+  id               String           @id @default(uuid())
+  name             String
+  price            Int
+  thumbnail        String
+  content          String
+  slug             String           @unique
+  description      String
+  status           CourseStatus     @default(draft)
+  studentCount     Int              @default(0)
+  star             Decimal          @db.Decimal(2, 1)
+  userId           String
+  publishedBy      String?
+  isDeleted        Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
+  publishedAt      DateTime?
+  detailsInvoices  DetailsInvoice[]
+  reports          CourseReport[]
+  reviews          CourseReview[]
+  courseTopics     CourseTopic[]
+  publisher        User?            @relation("CoursePublishedBy", fields: [publishedBy], references: [id])
+  user             User             @relation(fields: [userId], references: [id])
+  lessons          Lesson[]
 
   @@map("courses")
+}
+
+model Lesson {
+  id          String           @id @default(uuid())
+  courseId    String
+  name        String
+  status      LessonStatus     @default(draft)
+  publisherId String?
+  isDeleted   Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  deletedAt   DateTime?
+  publishedAt DateTime?
+  materials   LessonMaterial[]
+  course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  publisher   User?            @relation("LessonPublishedBy", fields: [publisherId], references: [id])
+  tickets     Ticket[]
+
+  @@map("lessons")
+}
+
+model LessonMaterial {
+  id          String       @id @default(uuid())
+  lessonId    String
+  type        MaterialType
+  name        String
+  url         String
+  status      LessonStatus @default(draft)
+  publisherId String?
+  isDeleted   Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+  publishedAt DateTime?
+  isPreview   Boolean      @default(false)
+  lesson      Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  publisher   User?        @relation("LessonMaterialPublishedBy", fields: [publisherId], references: [id])
+
+  @@map("lesson_materials")
+}
+
+model Topic {
+  id        String        @id @default(uuid())
+  name      String
+  slug      String        @unique
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  courses   CourseTopic[]
+
+  @@map("topics")
+}
+
+model CourseTopic {
+  id        String   @id @default(uuid())
+  courseId  String
+  topicId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, topicId])
+  @@map("course_topics")
+}
+
+model Ticket {
+  id         String          @id @default(uuid())
+  lessonId   String
+  senderId   String
+  receiverId String
+  title      String
+  isClosed   Boolean         @default(false)
+  isDeleted  Boolean         @default(false)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  deletedAt  DateTime?
+  messages   TicketMessage[]
+  lesson     Lesson          @relation(fields: [lessonId], references: [id])
+  receiver   User            @relation("TicketReceiver", fields: [receiverId], references: [id])
+  sender     User            @relation("TicketSender", fields: [senderId], references: [id])
+
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id        String    @id @default(uuid())
+  ticketId  String
+  senderId  String
+  content   String
+  isDeleted Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  sender    User      @relation(fields: [senderId], references: [id])
+  ticket    Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_messages")
+}
+
+model CourseReview {
+  id         String    @id @default(uuid())
+  reviewerId String
+  courseId   String
+  rating     Int
+  content    String
+  isDeleted  Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+  course     Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  reviewer   User      @relation(fields: [reviewerId], references: [id])
+
+  @@map("course_reviews")
+}
+
+model CourseReport {
+  id          String             @id @default(uuid())
+  courseId    String
+  reporterId  String
+  processorId String?
+  reason      String
+  status      CourseReportStatus @default(pending)
+  isDeleted   Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  deletedAt   DateTime?
+  course      Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  processor   User?              @relation("processor", fields: [processorId], references: [id])
+  reporter    User               @relation(fields: [reporterId], references: [id])
+
+  @@map("course_reports")
+}
+
+model CoursePurchase {
+  id        String               @id @default(uuid())
+  userId    String
+  amount    Int
+  status    CoursePurchaseStatus @default(purchased)
+  isDeleted Boolean              @default(false)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  deletedAt DateTime?
+  user      User                 @relation(fields: [userId], references: [id])
+  invoices  DetailsInvoice[]
+
+  @@map("course_purchases")
+}
+model DetailsInvoice {
+  id               String   @id @default(uuid())
+  coursePurchaseId String
+  courseId         String
+  price            Int
+  status           String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  coursePurchase   CoursePurchase @relation(fields: [coursePurchaseId], references: [id], onDelete: Cascade)
+  course           Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([coursePurchaseId, courseId])
+  @@map("invoices")
+}
+
+model Transaction {
+  id            String            @id @default(uuid())
+  userId        String
+  type          TransactionType
+  amount        Int
+  bankName      String?
+  accountNumber String?
+  status        TransactionStatus @default(pending)
+  isDeleted     Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  deletedAt     DateTime?
+  user          User              @relation(fields: [userId], references: [id])
+
+  @@map("transactions")
+}
+
+model System {
+  id            String   @id @default("system")
+  timeRefund    Int
+  limitRefund   Int
+  comissionRate Decimal  @db.Decimal(5, 2)
+  term          String
+  updatedAt     DateTime @updatedAt
+  banks         Bank[]
+
+  @@map("systems")
+}
+
+model Bank {
+  id         String    @id @default(uuid())
+  systemId   String
+  bankNumber String
+  bankName   String
+  recipient  String
+  isDeleted  Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+  system     System    @relation(fields: [systemId], references: [id], onDelete: Cascade)
+
+  @@map("banks")
 }
 
 enum CourseStatus {
@@ -155,170 +342,16 @@ enum MaterialType {
   other
 }
 
-model Lesson {
-  id           String        @id @default(uuid())
-  courseId     String
-  name         String
-  status       LessonStatus  @default(draft)
-  publisherId  String?
-  isDeleted    Boolean       @default(false)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  deletedAt    DateTime?
-  publishedAt  DateTime?
-
-  course       Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  publisher    User?         @relation("LessonPublishedBy", fields: [publisherId], references: [id])
-  materials    LessonMaterial[]
-
-  tickets      Ticket[]
-
-  @@map("lessons")
-}
-
-model LessonMaterial {
-  id           String        @id @default(uuid())
-  lessonId     String
-  type         MaterialType
-  name         String
-  url          String
-  status       LessonStatus  @default(draft)
-  publisherId  String?
-  isDeleted    Boolean       @default(false)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  deletedAt    DateTime?
-  publishedAt  DateTime?
-
-  lesson       Lesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  publisher    User?         @relation("LessonMaterialPublishedBy", fields: [publisherId], references: [id])
-
-  @@map("lesson_materials")
-}
-
-model Topic {
-  id        String   @id @default(uuid())
-  name      String
-  slug      String   @unique
-  courses   CourseTopic[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@map("topics")
-}
-
-model CourseTopic {
-  id        String   @id @default(uuid())
-  courseId  String
-  topicId   String
-  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@unique([courseId, topicId])
-  @@map("course_topics")
-}
-
-model Ticket {
-  id         String   @id @default(uuid())
-  lessonId   String
-  senderId   String
-  receiverId String
-  title      String
-  isClosed   Boolean  @default(false)
-  isDeleted  Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  deletedAt  DateTime?
-
-  lesson    Lesson          @relation(fields: [lessonId], references: [id])
-  sender    User            @relation("TicketSender", fields: [senderId], references: [id])
-  receiver  User            @relation("TicketReceiver", fields: [receiverId], references: [id])
-  messages  TicketMessage[]
-
-  @@map("tickets")
-}
-
-model TicketMessage {
-  id        String   @id @default(uuid())
-  ticketId  String
-  senderId  String
-  content   String
-  isDeleted Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime?
-
-  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  sender User   @relation(fields: [senderId], references: [id])
-
-  @@map("ticket_messages")
-}
-
-model CourseReview {
-  id         String   @id @default(uuid())
-  reviewerId String
-  courseId   String
-  rating     Int
-  content    String
-  isDeleted  Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  deletedAt  DateTime?
-
-  reviewer User   @relation(fields: [reviewerId], references: [id])
-  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  @@map("course_reviews")
-}
-
-
-
 enum CourseReportStatus {
   pending
   resolved
   dismissed
 }
 
-model CourseReport {
-  id         String             @id @default(uuid())
-  courseId   String
-  reporterId String
-  processorId String?
-  reason     String
-  status     CourseReportStatus @default(pending)
-  isDeleted  Boolean            @default(false)
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
-  deletedAt  DateTime?
-
-  course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  reporter  User   @relation(fields: [reporterId], references: [id])
-  processor User?  @relation("processor", fields: [processorId], references: [id])
-
-  @@map("course_reports")
-}
-
 enum CoursePurchaseStatus {
   purchased
   refund_requested
   refunded
-}
-
-model CoursePurchase {
-  id        String               @id @default(uuid())
-  userId    String
-  courseId  String
-  amount    Int
-  status    CoursePurchaseStatus @default(purchased)
-  isDeleted Boolean              @default(false)
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
-  deletedAt DateTime?
-
-  user   User   @relation(fields: [userId], references: [id])
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  @@map("course_purchases")
 }
 
 enum TransactionType {
@@ -332,51 +365,4 @@ enum TransactionStatus {
   failed
   approved
   rejected
-}
-
-model Transaction {
-  id            String             @id @default(uuid())
-  userId        String
-  type          TransactionType
-  amount        Int
-  bankName      String?
-  accountNumber String?
-  status        TransactionStatus  @default(pending)
-  isDeleted     Boolean            @default(false)
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-  deletedAt     DateTime?
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@map("transactions")
-}
-
-model System {
-  id            String   @id @default("system")
-  timeRefund    Int
-  limitRefund   Int
-  comissionRate Decimal  @db.Decimal(5,2)
-  term          String
-  updatedAt     DateTime @updatedAt
-
-  banks         Bank[]
-
-  @@map("systems")
-}
-
-model Bank {
-  id         String   @id @default(uuid())
-  systemId   String
-  bankNumber String
-  bankName   String
-  recipient  String
-  isDeleted  Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  deletedAt  DateTime?
-
-  system     System   @relation(fields: [systemId], references: [id], onDelete: Cascade)
-
-  @@map("banks")
 }
