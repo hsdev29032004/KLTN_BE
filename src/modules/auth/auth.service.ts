@@ -15,6 +15,13 @@ export class AuthService {
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
 
+    if (!email) {
+      throw new UnauthorizedException('Email is required');
+    }
+    if (!password) {
+      throw new UnauthorizedException('Password is required');
+    }
+
     // Tìm user theo email
     const user = await this.prisma.user.findUnique({
       where: { email },

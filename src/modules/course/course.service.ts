@@ -134,4 +134,25 @@ export class CourseService {
 
     return { message: 'Lấy thông tin khóa học thành công', data: course };
   }
+
+  async findMyCourses(userId: string) {
+    // Lấy courseId từ UserCourse rồi truy vấn Course tương ứng (giữ format giống findAll)
+    const userCourses = await this.prisma.userCourse.findMany({
+      where: { userId },
+      select: { courseId: true },
+    });
+
+    const courseIds = userCourses.map((uc) => uc.courseId);
+    if (courseIds.length === 0) {
+      return { message: 'Lấy danh sách khóa học đã mua thành công', data: [] };
+    }
+
+    const courses = await this.prisma.course.findMany({
+      where: { id: { in: courseIds }, isDeleted: false, status: 'published' },
+      select: COURSE_LIST_SELECT as any,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return { message: 'Lấy danh sách khóa học đã mua thành công', data: courses };
+  }
 }
