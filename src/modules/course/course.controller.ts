@@ -1,8 +1,9 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { CourseService } from './course.service';
 import { PublicAPI } from '@/common/decorators/public-api.decorator';
 import { User } from '@/common/decorators/user.decorator';
 import { Roles } from '@/common/decorators/roles.decorator';
+import type { IUser } from '@/shared/types/user.type';
 
 @Controller('course')
 export class CourseController {
@@ -10,7 +11,13 @@ export class CourseController {
 
   @PublicAPI()
   @Get()
-  findAll() {
+  findAll(@Query('ids') ids: string) {
+    console.log(ids, 'idsidisidsids');
+
+    if (ids) {
+      const idArray = ids.split(',').map(id => id.trim());
+      return this.courseService.findByIds(idArray);
+    }
     return this.courseService.findAll();
   }
 
@@ -22,10 +29,8 @@ export class CourseController {
   }
 
   @Roles('user')
-  @Get('my-courses')
-  findMy(@User() user: any) {
-    console.log(user);
-
+  @Get('purchased')
+  findMy(@User() user: IUser) {
     return this.courseService.findMyCourses(user.id);
   }
 
@@ -33,5 +38,11 @@ export class CourseController {
   @Get(':slug')
   findBySlug(@Param('slug') slug: string) {
     return this.courseService.findBySlug(slug);
+  }
+
+  @PublicAPI()
+  @Get('playback/:materialId')
+  getPlaybackToken(@Param('materialId') materialId: string, @User() user?: IUser) {
+    return this.courseService.getPlaybackToken(materialId, user);
   }
 }

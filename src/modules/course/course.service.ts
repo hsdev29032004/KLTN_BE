@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@/infras/prisma/prisma.service';
+import * as jsonwebtoken from 'jsonwebtoken';
+import type { IUser } from '@/shared/types/user.type';
 
 const COURSE_LIST_SELECT = {
   id: true,
@@ -33,7 +35,9 @@ const COURSE_LIST_SELECT = {
 
 @Injectable()
 export class CourseService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+  ) { }
 
   async findAll() {
     const courses = await this.prisma.course.findMany({
@@ -43,6 +47,15 @@ export class CourseService {
     });
 
     return { message: 'Lấy danh sách khóa học thành công', data: courses };
+  }
+
+  async findByIds(ids: string[]) {
+    const courses = await this.prisma.course.findMany({
+      where: { id: { in: ids }, isDeleted: false, status: 'published' },
+      select: COURSE_LIST_SELECT,
+    });
+
+    return { message: 'Lấy danh sách khóa học theo danh sách ID thành công', data: courses };
   }
 
   async findByUserId(userId: string) {
@@ -154,5 +167,75 @@ export class CourseService {
     });
 
     return { message: 'Lấy danh sách khóa học đã mua thành công', data: courses };
+  }
+
+  async getPlaybackToken(materialId: string, user?: IUser) {
+    // Lấy material và thông tin course/userCourses (không filter theo user ở query)
+    const lessonMaterial = await this.prisma.lessonMaterial.findFirst({
+      where: {
+        id: materialId,
+        isDeleted: false,
+        status: 'published',
+        lesson: {
+          isDeleted: false,
+          status: 'published',
+          course: {
+            isDeleted: false,
+            status: 'published',
+          },
+        },
+      },
+      include: {
+        lesson: {
+          include: {
+            course: {
+              include: { userCourses: { select: { userId: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    if (!lessonMaterial) {
+      throw new NotFoundException('Tài liệu không tồn tại');
+    }
+
+    // Nếu là preview cho phép playback mà không cần mua
+    if (lessonMaterial.isPreview) {
+      const playbackToken = { path: `lesson-${lessonMaterial.url}`, userId: user?.id };
+      const token = jsonwebtoken.sign(playbackToken, process.env.VIDEO_TOKEN_SECRET_KEY || '');
+      return { message: 'Lấy token phát lại thành công', data: { token } };
+    }
+
+    // Nếu không phải preview, cần có user và kiểm tra quyền
+    if (!user) {
+      throw new NotFoundException('Tài liệu không tồn tại hoặc bạn chưa mua khóa học này');
+    }
+
+    // Nếu user là chủ khóa học (instructor) => cho phép
+    const courseOwnerId = lessonMaterial.lesson?.course?.userId;
+    if (user.id === courseOwnerId) {
+      const playbackToken = { path: `lesson-${lessonMaterial.url}`, userId: user.id };
+      const token = jsonwebtoken.sign(playbackToken, process.env.VIDEO_TOKEN_SECRET_KEY || '');
+      return { message: 'Lấy token phát lại thành công', data: { token } };
+    }
+
+    // Nếu role không phải 'user' hoặc 'teacher' => cho phép (ví dụ admin)
+    const roleName = user.role?.name;
+    if (roleName && roleName !== 'user' && roleName !== 'teacher') {
+      const playbackToken = { path: `lesson-${lessonMaterial.url}`, userId: user.id };
+      const token = jsonwebtoken.sign(playbackToken, process.env.VIDEO_TOKEN_SECRET_KEY || '');
+      return { message: 'Lấy token phát lại thành công', data: { token } };
+    }
+
+    // Cuối cùng kiểm tra đã mua chưa
+    const purchased = !!lessonMaterial.lesson?.course?.userCourses?.some((uc) => uc.userId === user.id);
+    if (!purchased) {
+      throw new NotFoundException('Tài liệu không tồn tại hoặc bạn chưa mua khóa học này');
+    }
+
+    const playbackToken = { path: `lesson-${lessonMaterial.url}`, userId: user.id };
+    const token = jsonwebtoken.sign(playbackToken, process.env.VIDEO_TOKEN_SECRET_KEY || '');
+    return { message: 'Lấy token phát lại thành công', data: { token } };
   }
 }

@@ -6,6 +6,7 @@ import { RegisterDto } from './dto/register.dto';
 import { PublicAPI } from '@/common/decorators/public-api.decorator';
 import { User } from '@/common/decorators/user.decorator';
 import { SkipPermission } from '@/common/decorators/authenticated.decorator';
+import type { IUser } from '@/shared/types/user.type';
 
 @Controller('auth')
 export class AuthController {
@@ -45,7 +46,7 @@ export class AuthController {
 
   @SkipPermission()
   @Get('me')
-  async fetchMe(@User() user: any) {
+  async fetchMe(@User() user: IUser) {
     return {
       message: 'User information retrieved successfully',
       data: user,
@@ -54,7 +55,7 @@ export class AuthController {
 
   @SkipPermission()
   @Post('logout')
-  async logout(@User() user: any, @Res({ passthrough: true }) res: Response) {
+  async logout(@User() user: IUser, @Res({ passthrough: true }) res: Response) {
     await this.authService.logout(user.id);
 
     res.clearCookie('access_token');
