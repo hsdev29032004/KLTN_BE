@@ -41,8 +41,8 @@ export class CourseController {
   }
 
   @PublicAPI()
-  @Get('playback/:materialId')
-  getPlaybackToken(@Param('materialId') materialId: string, @User() user?: IUser) {
-    return this.courseService.getPlaybackToken(materialId, user);
+  @Get('material/:materialId')
+  getMaterial(@Param('materialId') materialId: string, @User() user?: IUser) {
+    return this.courseService.getMaterial(materialId, user);
   }
 }

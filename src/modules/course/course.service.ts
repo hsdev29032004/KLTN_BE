@@ -169,7 +169,9 @@ export class CourseService {
     return { message: 'Lấy danh sách khóa học đã mua thành công', data: courses };
   }
 
-  async getPlaybackToken(materialId: string, user?: IUser) {
+
+
+  async getMaterial(materialId: string, user?: IUser) {
     // Lấy material và thông tin course/userCourses (không filter theo user ở query)
     const lessonMaterial = await this.prisma.lessonMaterial.findFirst({
       where: {
@@ -200,11 +202,14 @@ export class CourseService {
       throw new NotFoundException('Tài liệu không tồn tại');
     }
 
+    // Nếu loại tài liệu không phải video => trả về url trực tiếp (không cần mã hóa)
+    if (lessonMaterial.type !== 'video') {
+      return { message: 'Lấy đường dẫn tài liệu thành công', data: { url: lessonMaterial.url } };
+    }
+
     // Nếu là preview cho phép playback mà không cần mua
     if (lessonMaterial.isPreview) {
-      const playbackToken = { path: `lesson-${lessonMaterial.url}`, userId: user?.id };
-      const token = jsonwebtoken.sign(playbackToken, process.env.VIDEO_TOKEN_SECRET_KEY || '');
-      return { message: 'Lấy token phát lại thành công', data: { token } };
+      return this.buildPlaybackResponse(lessonMaterial, user?.id);
     }
 
     // Nếu không phải preview, cần có user và kiểm tra quyền
@@ -215,17 +220,13 @@ export class CourseService {
     // Nếu user là chủ khóa học (instructor) => cho phép
     const courseOwnerId = lessonMaterial.lesson?.course?.userId;
     if (user.id === courseOwnerId) {
-      const playbackToken = { path: `lesson-${lessonMaterial.url}`, userId: user.id };
-      const token = jsonwebtoken.sign(playbackToken, process.env.VIDEO_TOKEN_SECRET_KEY || '');
-      return { message: 'Lấy token phát lại thành công', data: { token } };
+      return this.buildPlaybackResponse(lessonMaterial, user?.id);
     }
 
     // Nếu role không phải 'user' hoặc 'teacher' => cho phép (ví dụ admin)
     const roleName = user.role?.name;
     if (roleName && roleName !== 'user' && roleName !== 'teacher') {
-      const playbackToken = { path: `lesson-${lessonMaterial.url}`, userId: user.id };
-      const token = jsonwebtoken.sign(playbackToken, process.env.VIDEO_TOKEN_SECRET_KEY || '');
-      return { message: 'Lấy token phát lại thành công', data: { token } };
+      return this.buildPlaybackResponse(lessonMaterial, user?.id);
     }
 
     // Cuối cùng kiểm tra đã mua chưa
@@ -234,8 +235,17 @@ export class CourseService {
       throw new NotFoundException('Tài liệu không tồn tại hoặc bạn chưa mua khóa học này');
     }
 
-    const playbackToken = { path: `lesson-${lessonMaterial.url}`, userId: user.id };
+    return this.buildPlaybackResponse(lessonMaterial, user?.id);
+  }
+
+  private buildPlaybackResponse(lessonMaterial: any, userId?: string) {
+    // Nếu không phải video thì trả về url trực tiếp
+    if (lessonMaterial.type !== 'video') {
+      return { message: 'Lấy đường dẫn tài liệu thành công', data: { url: lessonMaterial.url } };
+    }
+
+    const playbackToken = { path: `lesson-${lessonMaterial.url}`, userId };
     const token = jsonwebtoken.sign(playbackToken, process.env.VIDEO_TOKEN_SECRET_KEY || '');
-    return { message: 'Lấy token phát lại thành công', data: { token } };
+    return { message: 'Lấy token phát lại thành công', data: { token, url: lessonMaterial.url } };
   }
 }
