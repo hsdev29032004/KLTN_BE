@@ -1,11 +1,8 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '@/infras/prisma/prisma.service';
 import * as jsonwebtoken from 'jsonwebtoken';
 import type { IUser } from '@/shared/types/user.type';
+import { ROLE_NAME } from '@/shared/constants/auth.constant';
 
 const COURSE_LIST_SELECT = {
   id: true,
@@ -39,7 +36,7 @@ const COURSE_LIST_SELECT = {
 
 @Injectable()
 export class CourseService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async findAll() {
     const courses = await this.prisma.course.findMany({
@@ -162,9 +159,9 @@ export class CourseService {
     };
   }
 
-  async findBySlug(slug: string) {
-    const course = await this.prisma.course.findFirst({
-      where: { slug, isDeleted: false },
+  async findBySlugOrId(key: string, user: IUser) {
+    const course: any = await this.prisma.course.findFirst({
+      where: { OR: [{ slug: key }, { id: key }], isDeleted: false },
       include: {
         user: {
           select: {
@@ -203,7 +200,6 @@ export class CourseService {
                 id: true,
                 name: true,
                 type: true,
-                url: true,
                 isPreview: true,
                 status: true,
                 createdAt: true,
@@ -239,7 +235,31 @@ export class CourseService {
 
     if (!course) throw new NotFoundException('Khóa học không tồn tại');
 
-    return { message: 'Lấy thông tin khóa học thành công', data: course };
+    // Determine whether we should expose material URLs:
+    // - course owner, non-user roles (e.g., admin), or users who purchased the course can see URLs
+    let allowFullAccess = false;
+    if (user) {
+      const courseOwnerId = course.user?.id;
+      if (user.id === courseOwnerId) {
+        allowFullAccess = true;
+      }
+
+      const roleName = user.role?.name;
+      if (roleName && roleName !== ROLE_NAME.USER && roleName !== ROLE_NAME.TEACHER) {
+        allowFullAccess = true;
+      }
+
+      console.log(allowFullAccess, 'allowFullAccess');
+
+      if (!allowFullAccess) {
+        console.log(123123);
+
+        const purchased = await this.prisma.userCourse.findFirst({ where: { courseId: course.id, userId: user.id } });
+        if (purchased) allowFullAccess = true;
+      }
+    }
+
+    return { message: 'Lấy thông tin khóa học thành công', data: course, canAccess: allowFullAccess };
   }
 
   async findMyCourses(userId: string) {
@@ -267,7 +287,6 @@ export class CourseService {
   }
 
   async getMaterial(materialId: string, user?: IUser) {
-    // Lấy material và thông tin course/userCourses (không filter theo user ở query)
     const lessonMaterial = await this.prisma.lessonMaterial.findFirst({
       where: {
         id: materialId,
@@ -297,7 +316,15 @@ export class CourseService {
       throw new NotFoundException('Tài liệu không tồn tại');
     }
 
-    // Nếu loại tài liệu không phải video => trả về url trực tiếp (không cần mã hóa)
+    // ── Kiểm tra quyền truy cập ──────────────────────────────────────────────
+
+    const hasAccess = this.checkAccess(lessonMaterial, user);
+    if (!hasAccess) {
+      throw new ForbiddenException('Bạn chưa mua khóa học này');
+    }
+
+    // ── Trả về response theo loại tài liệu ───────────────────────────────────
+
     if (lessonMaterial.type !== 'video') {
       return {
         message: 'Lấy đường dẫn tài liệu thành công',
@@ -325,7 +352,7 @@ export class CourseService {
 
     // Nếu role không phải 'user' hoặc 'teacher' => cho phép (ví dụ admin)
     const roleName = user.role?.name;
-    if (roleName && roleName !== 'user' && roleName !== 'teacher') {
+    if (roleName && roleName !== ROLE_NAME.USER && roleName !== ROLE_NAME.TEACHER) {
       return this.buildPlaybackResponse(lessonMaterial, user?.id);
     }
 
@@ -360,5 +387,42 @@ export class CourseService {
       message: 'Lấy token phát lại thành công',
       data: { token, url: lessonMaterial.url },
     };
+  }
+
+  private checkAccess(lessonMaterial: any, user?: IUser): boolean {
+    // 1. Preview → ai cũng xem được, không cần đăng nhập
+    if (lessonMaterial.isPreview) {
+      console.log(lessonMaterial.isPreview, 'isPreview');
+
+      return true;
+    }
+
+    // Từ đây bắt buộc phải có user
+    if (!user) {
+      console.log(2);
+      return false;
+    }
+
+    // 2. Owner của khóa học → cho phép
+    const courseOwnerId = lessonMaterial.lesson?.course?.userId;
+    if (user.id === courseOwnerId) {
+      console.log(3);
+      return true;
+    }
+
+    // 3. Admin / role đặc biệt (không phải user / teacher) → cho phép
+    const roleName = user.role?.name;
+    console.log(user.role);
+
+    if (roleName && roleName !== ROLE_NAME.USER && roleName !== ROLE_NAME.TEACHER) {
+      console.log(4);
+      return true;
+    }
+
+    // 4. Đã mua khóa học → cho phép
+    const purchased = lessonMaterial.lesson?.course?.userCourses?.some(
+      (uc: any) => uc.userId === user.id,
+    );
+    return !!purchased;
   }
 }
