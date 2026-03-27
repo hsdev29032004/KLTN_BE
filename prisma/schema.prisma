@@ -24,12 +24,12 @@ model User {
   availableAmount          Int?             @default(0)
   lockAmount               Int?             @default(0)
   slug                     String           @unique
-  coursePurchases          CoursePurchase[]
   processedReports         CourseReport[]   @relation("processor")
   reports                  CourseReport[]
   reviews                  CourseReview[]
   publishedCourses         Course[]         @relation("CoursePublishedBy")
   courses                  Course[]
+  invoices                 Invoices[]
   publishedLessonMaterials LessonMaterial[] @relation("LessonMaterialPublishedBy")
   publishedLessons         Lesson[]         @relation("LessonPublishedBy")
   messages                 Message[]
@@ -89,32 +89,32 @@ model Ban {
 }
 
 model Course {
-  id               String           @id @default(uuid())
-  name             String
-  price            Int
-  thumbnail        String
-  content          String
-  slug             String           @unique
-  description      String
-  status           CourseStatus     @default(draft)
-  studentCount     Int              @default(0)
-  star             Decimal          @db.Decimal(2, 1)
-  userId           String
-  publishedBy      String?
-  isDeleted        Boolean          @default(false)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  deletedAt        DateTime?
-  publishedAt      DateTime?
-  detailsInvoices  DetailsInvoice[]
-  userCourses      UserCourse[]
-  reports          CourseReport[]
-  reviews          CourseReview[]
-  courseTopics     CourseTopic[]
-  conversation     Conversation?
-  publisher        User?            @relation("CoursePublishedBy", fields: [publishedBy], references: [id])
-  user             User             @relation(fields: [userId], references: [id])
-  lessons          Lesson[]
+  id              String            @id @default(uuid())
+  name            String
+  price           Int
+  thumbnail       String
+  content         String
+  slug            String            @unique
+  description     String
+  status          CourseStatus      @default(draft)
+  studentCount    Int               @default(0)
+  star            Decimal           @db.Decimal(2, 1)
+  userId          String
+  publishedBy     String?
+  isDeleted       Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deletedAt       DateTime?
+  publishedAt     DateTime?
+  conversation    Conversation?
+  reports         CourseReport[]
+  reviews         CourseReview[]
+  courseTopics    CourseTopic[]
+  publisher       User?             @relation("CoursePublishedBy", fields: [publishedBy], references: [id])
+  user            User              @relation(fields: [userId], references: [id])
+  detail_invoices DetailInvoices[]
+  lessons         Lesson[]
+  userCourses     UserCourse[]
 
   @@map("courses")
 }
@@ -183,12 +183,11 @@ model CourseTopic {
 
 model Conversation {
   id        String    @id @default(uuid())
-  courseId  String    @unique 
+  courseId  String    @unique
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   isDeleted Boolean   @default(false)
   deletedAt DateTime?
-
   course    Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
   messages  Message[]
 
@@ -204,7 +203,6 @@ model Message {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   deletedAt      DateTime?
-
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         User         @relation(fields: [senderId], references: [id])
 
@@ -245,32 +243,18 @@ model CourseReport {
   @@map("course_reports")
 }
 
-model CoursePurchase {
-  id        String               @id @default(uuid())
-  userId    String
-  amount    Int
-  status    CoursePurchaseStatus @default(purchased)
-  isDeleted Boolean              @default(false)
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
-  deletedAt DateTime?
-  user      User                 @relation(fields: [userId], references: [id])
-  invoices  DetailsInvoice[]
+model Invoices {
+  id              String               @id(map: "course_purchases_pkey") @default(uuid())
+  userId          String
+  amount          Int
+  status          CoursePurchaseStatus @default(purchased)
+  isDeleted       Boolean              @default(false)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  deletedAt       DateTime?
+  detail_invoices DetailInvoices[]
+  users           User                 @relation(fields: [userId], references: [id], map: "course_purchases_userId_fkey")
 
-  @@map("course_purchases")
-}
-model DetailsInvoice {
-  id               String   @id @default(uuid())
-  coursePurchaseId String
-  courseId         String
-  price            Int
-  status           String
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  coursePurchase   CoursePurchase @relation(fields: [coursePurchaseId], references: [id], onDelete: Cascade)
-  course           Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  @@unique([coursePurchaseId, courseId])
   @@map("invoices")
 }
 
@@ -280,9 +264,8 @@ model UserCourse {
   courseId  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, courseId])
   @@map("user_courses")
@@ -330,6 +313,22 @@ model Bank {
   system     System    @relation(fields: [systemId], references: [id], onDelete: Cascade)
 
   @@map("banks")
+}
+
+model DetailInvoices {
+  id               String         @id(map: "invoices_pkey") @default(uuid())
+  coursePurchaseId String
+  courseId         String
+  price            Int
+  status           String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  courses          Course         @relation(fields: [courseId], references: [id], onDelete: Cascade, map: "invoices_courseId_fkey")
+  invoices         Invoices @relation(fields: [coursePurchaseId], references: [id], onDelete: Cascade, map: "invoices_coursePurchaseId_fkey")
+
+  @@unique([coursePurchaseId, courseId], map: "invoices_coursePurchaseId_courseId_key")
+
+  @@map("detail_invoices")
 }
 
 enum CourseStatus {

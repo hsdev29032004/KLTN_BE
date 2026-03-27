@@ -90,13 +90,13 @@ export class CourseService {
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const purchase = await tx.coursePurchase.create({
+      const purchase = await tx.invoices.create({
         data: { userId, amount: total },
       });
 
       const details = await Promise.all(
         courses.map((c) =>
-          tx.detailsInvoice.create({
+          tx.detailInvoices.create({
             data: {
               coursePurchaseId: purchase.id,
               courseId: c.id,
