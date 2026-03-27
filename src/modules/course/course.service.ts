@@ -1,5 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '@/infras/prisma/prisma.service';
+import * as jsonwebtoken from 'jsonwebtoken';
+import type { IUser } from '@/shared/types/user.type';
+import { ROLE_NAME } from '@/shared/constants/auth.constant';
 
 const COURSE_LIST_SELECT = {
   id: true,
@@ -45,6 +48,104 @@ export class CourseService {
     return { message: 'Lấy danh sách khóa học thành công', data: courses };
   }
 
+  async purchaseCourses(userId: string, courseIds: string[]) {
+    if (!Array.isArray(courseIds) || courseIds.length === 0) {
+      throw new BadRequestException('Danh sách khóa học rỗng');
+    }
+
+    // Check already purchased
+    const already = await this.prisma.userCourse.findMany({
+      where: { userId, courseId: { in: courseIds } },
+      select: { courseId: true },
+    });
+
+    if (already.length > 0) {
+      throw new BadRequestException('Tồn tại khóa học đã mua');
+    }
+
+    // Load courses and validate
+    const courses = await this.prisma.course.findMany({
+      where: { id: { in: courseIds }, isDeleted: false },
+      select: { id: true, price: true },
+    });
+
+    if (courses.length !== courseIds.length) {
+      throw new NotFoundException('Có khóa học không tồn tại');
+    }
+
+    const total = courses.reduce(
+      (sum, course) => sum + Number(course.price),
+      0,
+    );
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, availableAmount: true },
+    });
+
+    if (!user) throw new NotFoundException('Người dùng không tồn tại');
+
+    if ((user.availableAmount ?? 0) < total) {
+      throw new BadRequestException('Không đủ số dư');
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const purchase = await tx.coursePurchase.create({
+        data: { userId, amount: total },
+      });
+
+      const details = await Promise.all(
+        courses.map((c) =>
+          tx.detailsInvoice.create({
+            data: {
+              coursePurchaseId: purchase.id,
+              courseId: c.id,
+              price: c.price,
+              status: 'paid',
+            },
+          }),
+        ),
+      );
+
+      const userCourses = await Promise.all(
+        courses.map((c) =>
+          tx.userCourse.create({ data: { userId, courseId: c.id } }),
+        ),
+      );
+
+      // Ensure conversation exists for each course
+      for (const c of courses) {
+        const conv = await tx.conversation.findUnique({
+          where: { courseId: c.id },
+        });
+        if (!conv) {
+          await tx.conversation.create({ data: { courseId: c.id } });
+        }
+      }
+
+      await tx.user.update({
+        where: { id: userId },
+        data: { availableAmount: { decrement: total } },
+      });
+
+      return { purchase, details, userCourses };
+    });
+
+    return { message: 'Mua khóa học thành công', data: result };
+  }
+
+  async findByIds(ids: string[]) {
+    const courses = await this.prisma.course.findMany({
+      where: { id: { in: ids }, isDeleted: false, status: 'published' },
+      select: COURSE_LIST_SELECT,
+    });
+
+    return {
+      message: 'Lấy danh sách khóa học theo danh sách ID thành công',
+      data: courses,
+    };
+  }
+
   async findByUserId(userId: string) {
     const courses = await this.prisma.course.findMany({
       where: { userId, isDeleted: false },
@@ -52,12 +153,15 @@ export class CourseService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return { message: 'Lấy danh sách khóa học theo user thành công', data: courses };
+    return {
+      message: 'Lấy danh sách khóa học theo user thành công',
+      data: courses,
+    };
   }
 
-  async findBySlug(slug: string) {
-    const course = await this.prisma.course.findFirst({
-      where: { slug, isDeleted: false },
+  async findBySlugOrId(key: string, user: IUser) {
+    const course: any = await this.prisma.course.findFirst({
+      where: { OR: [{ slug: key }, { id: key }], isDeleted: false },
       include: {
         user: {
           select: {
@@ -96,7 +200,6 @@ export class CourseService {
                 id: true,
                 name: true,
                 type: true,
-                url: true,
                 isPreview: true,
                 status: true,
                 createdAt: true,
@@ -132,6 +235,194 @@ export class CourseService {
 
     if (!course) throw new NotFoundException('Khóa học không tồn tại');
 
-    return { message: 'Lấy thông tin khóa học thành công', data: course };
+    // Determine whether we should expose material URLs:
+    // - course owner, non-user roles (e.g., admin), or users who purchased the course can see URLs
+    let allowFullAccess = false;
+    if (user) {
+      const courseOwnerId = course.user?.id;
+      if (user.id === courseOwnerId) {
+        allowFullAccess = true;
+      }
+
+      const roleName = user.role?.name;
+      if (roleName && roleName !== ROLE_NAME.USER && roleName !== ROLE_NAME.TEACHER) {
+        allowFullAccess = true;
+      }
+
+      console.log(allowFullAccess, 'allowFullAccess');
+
+      if (!allowFullAccess) {
+        console.log(123123);
+
+        const purchased = await this.prisma.userCourse.findFirst({ where: { courseId: course.id, userId: user.id } });
+        if (purchased) allowFullAccess = true;
+      }
+    }
+
+    return { message: 'Lấy thông tin khóa học thành công', data: course, canAccess: allowFullAccess };
+  }
+
+  async findMyCourses(userId: string) {
+    // Lấy courseId từ UserCourse rồi truy vấn Course tương ứng (giữ format giống findAll)
+    const userCourses = await this.prisma.userCourse.findMany({
+      where: { userId },
+      select: { courseId: true },
+    });
+
+    const courseIds = userCourses.map((uc) => uc.courseId);
+    if (courseIds.length === 0) {
+      return { message: 'Lấy danh sách khóa học đã mua thành công', data: [] };
+    }
+
+    const courses = await this.prisma.course.findMany({
+      where: { id: { in: courseIds }, isDeleted: false, status: 'published' },
+      select: COURSE_LIST_SELECT as any,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      message: 'Lấy danh sách khóa học đã mua thành công',
+      data: courses,
+    };
+  }
+
+  async getMaterial(materialId: string, user?: IUser) {
+    const lessonMaterial = await this.prisma.lessonMaterial.findFirst({
+      where: {
+        id: materialId,
+        isDeleted: false,
+        status: 'published',
+        lesson: {
+          isDeleted: false,
+          status: 'published',
+          course: {
+            isDeleted: false,
+            status: 'published',
+          },
+        },
+      },
+      include: {
+        lesson: {
+          include: {
+            course: {
+              include: { userCourses: { select: { userId: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    if (!lessonMaterial) {
+      throw new NotFoundException('Tài liệu không tồn tại');
+    }
+
+    // ── Kiểm tra quyền truy cập ──────────────────────────────────────────────
+
+    const hasAccess = this.checkAccess(lessonMaterial, user);
+    if (!hasAccess) {
+      throw new ForbiddenException('Bạn chưa mua khóa học này');
+    }
+
+    // ── Trả về response theo loại tài liệu ───────────────────────────────────
+
+    if (lessonMaterial.type !== 'video') {
+      return {
+        message: 'Lấy đường dẫn tài liệu thành công',
+        data: { url: lessonMaterial.url },
+      };
+    }
+
+    // Nếu là preview cho phép playback mà không cần mua
+    if (lessonMaterial.isPreview) {
+      return this.buildPlaybackResponse(lessonMaterial, user?.id);
+    }
+
+    // Nếu không phải preview, cần có user và kiểm tra quyền
+    if (!user) {
+      throw new NotFoundException(
+        'Tài liệu không tồn tại hoặc bạn chưa mua khóa học này',
+      );
+    }
+
+    // Nếu user là chủ khóa học (instructor) => cho phép
+    const courseOwnerId = lessonMaterial.lesson?.course?.userId;
+    if (user.id === courseOwnerId) {
+      return this.buildPlaybackResponse(lessonMaterial, user?.id);
+    }
+
+    // Nếu role không phải 'user' hoặc 'teacher' => cho phép (ví dụ admin)
+    const roleName = user.role?.name;
+    if (roleName && roleName !== ROLE_NAME.USER && roleName !== ROLE_NAME.TEACHER) {
+      return this.buildPlaybackResponse(lessonMaterial, user?.id);
+    }
+
+    // Cuối cùng kiểm tra đã mua chưa
+    const purchased = !!lessonMaterial.lesson?.course?.userCourses?.some(
+      (uc) => uc.userId === user.id,
+    );
+    if (!purchased) {
+      throw new NotFoundException(
+        'Tài liệu không tồn tại hoặc bạn chưa mua khóa học này',
+      );
+    }
+
+    return this.buildPlaybackResponse(lessonMaterial, user?.id);
+  }
+
+  private buildPlaybackResponse(lessonMaterial: any, userId?: string) {
+    // Nếu không phải video thì trả về url trực tiếp
+    if (lessonMaterial.type !== 'video') {
+      return {
+        message: 'Lấy đường dẫn tài liệu thành công',
+        data: { url: lessonMaterial.url },
+      };
+    }
+
+    const playbackToken = { path: `lesson-${lessonMaterial.url}`, userId };
+    const token = jsonwebtoken.sign(
+      playbackToken,
+      process.env.VIDEO_TOKEN_SECRET_KEY || '',
+    );
+    return {
+      message: 'Lấy token phát lại thành công',
+      data: { token, url: lessonMaterial.url },
+    };
+  }
+
+  private checkAccess(lessonMaterial: any, user?: IUser): boolean {
+    // 1. Preview → ai cũng xem được, không cần đăng nhập
+    if (lessonMaterial.isPreview) {
+      console.log(lessonMaterial.isPreview, 'isPreview');
+
+      return true;
+    }
+
+    // Từ đây bắt buộc phải có user
+    if (!user) {
+      console.log(2);
+      return false;
+    }
+
+    // 2. Owner của khóa học → cho phép
+    const courseOwnerId = lessonMaterial.lesson?.course?.userId;
+    if (user.id === courseOwnerId) {
+      console.log(3);
+      return true;
+    }
+
+    // 3. Admin / role đặc biệt (không phải user / teacher) → cho phép
+    const roleName = user.role?.name;
+    console.log(user.role);
+
+    if (roleName && roleName !== ROLE_NAME.USER && roleName !== ROLE_NAME.TEACHER) {
+      console.log(4);
+      return true;
+    }
+
+    // 4. Đã mua khóa học → cho phép
+    const purchased = lessonMaterial.lesson?.course?.userCourses?.some(
+      (uc: any) => uc.userId === user.id,
+    );
+    return !!purchased;
   }
 }

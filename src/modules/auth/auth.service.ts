@@ -4,6 +4,7 @@ import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { PrismaService } from '@/infras/prisma/prisma.service';
 import { buildJwtPayload } from '@/shared/utils/auth.util';
+import { ROLE_NAME } from '@/shared/constants/auth.constant';
 
 @Injectable()
 export class AuthService {
@@ -14,6 +15,13 @@ export class AuthService {
 
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
+
+    if (!email) {
+      throw new UnauthorizedException('Email is required');
+    }
+    if (!password) {
+      throw new UnauthorizedException('Password is required');
+    }
 
     // Tìm user theo email
     const user = await this.prisma.user.findUnique({
@@ -89,7 +97,7 @@ export class AuthService {
     const hash = await bcrypt.hash(password, parseInt(process.env.BCRYPT_SALT as string));
 
     // Lấy role mặc định (user)
-    const defaultRole = await this.prisma.role.findFirst({ where: { name: 'user' } });
+    const defaultRole = await this.prisma.role.findFirst({ where: { name: ROLE_NAME.USER } });
     if (!defaultRole) {
       throw new UnauthorizedException('Default role not found');
     }

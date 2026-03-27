@@ -32,9 +32,7 @@ model User {
   courses                  Course[]
   publishedLessonMaterials LessonMaterial[] @relation("LessonMaterialPublishedBy")
   publishedLessons         Lesson[]         @relation("LessonPublishedBy")
-  messages                 TicketMessage[]
-  ticketsAsReceiver        Ticket[]         @relation("TicketReceiver")
-  ticketsAsSender          Ticket[]         @relation("TicketSender")
+  messages                 Message[]
   transactions             Transaction[]
   userCourses              UserCourse[]
   ban                      Ban?             @relation(fields: [banId], references: [id])
@@ -109,10 +107,11 @@ model Course {
   deletedAt        DateTime?
   publishedAt      DateTime?
   detailsInvoices  DetailsInvoice[]
-  userCourses       UserCourse[]
+  userCourses      UserCourse[]
   reports          CourseReport[]
   reviews          CourseReview[]
   courseTopics     CourseTopic[]
+  conversation     Conversation?
   publisher        User?            @relation("CoursePublishedBy", fields: [publishedBy], references: [id])
   user             User             @relation(fields: [userId], references: [id])
   lessons          Lesson[]
@@ -134,7 +133,6 @@ model Lesson {
   materials   LessonMaterial[]
   course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
   publisher   User?            @relation("LessonPublishedBy", fields: [publisherId], references: [id])
-  tickets     Ticket[]
 
   @@map("lessons")
 }
@@ -183,38 +181,34 @@ model CourseTopic {
   @@map("course_topics")
 }
 
-model Ticket {
-  id         String          @id @default(uuid())
-  lessonId   String
-  senderId   String
-  receiverId String
-  title      String
-  isClosed   Boolean         @default(false)
-  isDeleted  Boolean         @default(false)
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
-  deletedAt  DateTime?
-  messages   TicketMessage[]
-  lesson     Lesson          @relation(fields: [lessonId], references: [id])
-  receiver   User            @relation("TicketReceiver", fields: [receiverId], references: [id])
-  sender     User            @relation("TicketSender", fields: [senderId], references: [id])
-
-  @@map("tickets")
-}
-
-model TicketMessage {
+model Conversation {
   id        String    @id @default(uuid())
-  ticketId  String
-  senderId  String
-  content   String
-  isDeleted Boolean   @default(false)
+  courseId  String    @unique 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  isDeleted Boolean   @default(false)
   deletedAt DateTime?
-  sender    User      @relation(fields: [senderId], references: [id])
-  ticket    Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
-  @@map("ticket_messages")
+  course    Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String
+  isDeleted      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id])
+
+  @@map("messages")
 }
 
 model CourseReview {

@@ -13,6 +13,7 @@ import { UpdateReviewDto } from './dto/update-review.dto';
 import { PublicAPI } from '@/common/decorators/public-api.decorator';
 import { SkipPermission } from '@/common/decorators/authenticated.decorator';
 import { User } from '@/common/decorators/user.decorator';
+import type { IUser } from '@/shared/types/user.type';
 
 @Controller('review')
 export class ReviewController {
@@ -35,7 +36,7 @@ export class ReviewController {
   // Tạo review - courseId truyền qua body
   @SkipPermission()
   @Post()
-  create(@User() user: any, @Body() dto: CreateReviewDto) {
+  create(@User() user: IUser, @Body() dto: CreateReviewDto) {
     return this.reviewService.create(user.id, dto);
   }
 
@@ -44,7 +45,7 @@ export class ReviewController {
   @Patch(':id')
   update(
     @Param('id') id: string,
-    @User() user: any,
+    @User() user: IUser,
     @Body() dto: UpdateReviewDto,
   ) {
     return this.reviewService.update(id, user.id, dto);
