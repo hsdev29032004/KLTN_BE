@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query, Post, Body } from '@nestjs/common';
 import { CourseService } from './course.service';
 import { PublicAPI } from '@/common/decorators/public-api.decorator';
 import { User } from '@/common/decorators/user.decorator';
@@ -7,7 +7,7 @@ import type { IUser } from '@/shared/types/user.type';
 
 @Controller('course')
 export class CourseController {
-  constructor(private readonly courseService: CourseService) { }
+  constructor(private readonly courseService: CourseService) {}
 
   @PublicAPI()
   @Get()
@@ -15,7 +15,7 @@ export class CourseController {
     console.log(ids, 'idsidisidsids');
 
     if (ids) {
-      const idArray = ids.split(',').map(id => id.trim());
+      const idArray = ids.split(',').map((id) => id.trim());
       return this.courseService.findByIds(idArray);
     }
     return this.courseService.findAll();
@@ -44,5 +44,11 @@ export class CourseController {
   @Get('material/:materialId')
   getMaterial(@Param('materialId') materialId: string, @User() user?: IUser) {
     return this.courseService.getMaterial(materialId, user);
+  }
+
+  @Roles('user')
+  @Post('purchased')
+  purchase(@User() user: IUser, @Body() ids: string[]) {
+    return this.courseService.purchaseCourses(user.id, ids);
   }
 }

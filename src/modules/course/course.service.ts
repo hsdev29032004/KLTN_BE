@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '@/infras/prisma/prisma.service';
 import * as jsonwebtoken from 'jsonwebtoken';
 import type { IUser } from '@/shared/types/user.type';
@@ -35,9 +39,7 @@ const COURSE_LIST_SELECT = {
 
 @Injectable()
 export class CourseService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async findAll() {
     const courses = await this.prisma.course.findMany({
@@ -49,13 +51,102 @@ export class CourseService {
     return { message: 'Lấy danh sách khóa học thành công', data: courses };
   }
 
+  async purchaseCourses(userId: string, courseIds: string[]) {
+    if (!Array.isArray(courseIds) || courseIds.length === 0) {
+      throw new BadRequestException('Danh sách khóa học rỗng');
+    }
+
+    // Check already purchased
+    const already = await this.prisma.userCourse.findMany({
+      where: { userId, courseId: { in: courseIds } },
+      select: { courseId: true },
+    });
+
+    if (already.length > 0) {
+      throw new BadRequestException('Tồn tại khóa học đã mua');
+    }
+
+    // Load courses and validate
+    const courses = await this.prisma.course.findMany({
+      where: { id: { in: courseIds }, isDeleted: false },
+      select: { id: true, price: true },
+    });
+
+    if (courses.length !== courseIds.length) {
+      throw new NotFoundException('Có khóa học không tồn tại');
+    }
+
+    const total = courses.reduce(
+      (sum, course) => sum + Number(course.price),
+      0,
+    );
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, availableAmount: true },
+    });
+
+    if (!user) throw new NotFoundException('Người dùng không tồn tại');
+
+    if ((user.availableAmount ?? 0) < total) {
+      throw new BadRequestException('Không đủ số dư');
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const purchase = await tx.coursePurchase.create({
+        data: { userId, amount: total },
+      });
+
+      const details = await Promise.all(
+        courses.map((c) =>
+          tx.detailsInvoice.create({
+            data: {
+              coursePurchaseId: purchase.id,
+              courseId: c.id,
+              price: c.price,
+              status: 'paid',
+            },
+          }),
+        ),
+      );
+
+      const userCourses = await Promise.all(
+        courses.map((c) =>
+          tx.userCourse.create({ data: { userId, courseId: c.id } }),
+        ),
+      );
+
+      // Ensure conversation exists for each course
+      for (const c of courses) {
+        const conv = await tx.conversation.findUnique({
+          where: { courseId: c.id },
+        });
+        if (!conv) {
+          await tx.conversation.create({ data: { courseId: c.id } });
+        }
+      }
+
+      await tx.user.update({
+        where: { id: userId },
+        data: { availableAmount: { decrement: total } },
+      });
+
+      return { purchase, details, userCourses };
+    });
+
+    return { message: 'Mua khóa học thành công', data: result };
+  }
+
   async findByIds(ids: string[]) {
     const courses = await this.prisma.course.findMany({
       where: { id: { in: ids }, isDeleted: false, status: 'published' },
       select: COURSE_LIST_SELECT,
     });
 
-    return { message: 'Lấy danh sách khóa học theo danh sách ID thành công', data: courses };
+    return {
+      message: 'Lấy danh sách khóa học theo danh sách ID thành công',
+      data: courses,
+    };
   }
 
   async findByUserId(userId: string) {
@@ -65,7 +156,10 @@ export class CourseService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return { message: 'Lấy danh sách khóa học theo user thành công', data: courses };
+    return {
+      message: 'Lấy danh sách khóa học theo user thành công',
+      data: courses,
+    };
   }
 
   async findBySlug(slug: string) {
@@ -166,10 +260,11 @@ export class CourseService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return { message: 'Lấy danh sách khóa học đã mua thành công', data: courses };
+    return {
+      message: 'Lấy danh sách khóa học đã mua thành công',
+      data: courses,
+    };
   }
-
-
 
   async getMaterial(materialId: string, user?: IUser) {
     // Lấy material và thông tin course/userCourses (không filter theo user ở query)
@@ -204,7 +299,10 @@ export class CourseService {
 
     // Nếu loại tài liệu không phải video => trả về url trực tiếp (không cần mã hóa)
     if (lessonMaterial.type !== 'video') {
-      return { message: 'Lấy đường dẫn tài liệu thành công', data: { url: lessonMaterial.url } };
+      return {
+        message: 'Lấy đường dẫn tài liệu thành công',
+        data: { url: lessonMaterial.url },
+      };
     }
 
     // Nếu là preview cho phép playback mà không cần mua
@@ -214,7 +312,9 @@ export class CourseService {
 
     // Nếu không phải preview, cần có user và kiểm tra quyền
     if (!user) {
-      throw new NotFoundException('Tài liệu không tồn tại hoặc bạn chưa mua khóa học này');
+      throw new NotFoundException(
+        'Tài liệu không tồn tại hoặc bạn chưa mua khóa học này',
+      );
     }
 
     // Nếu user là chủ khóa học (instructor) => cho phép
@@ -230,9 +330,13 @@ export class CourseService {
     }
 
     // Cuối cùng kiểm tra đã mua chưa
-    const purchased = !!lessonMaterial.lesson?.course?.userCourses?.some((uc) => uc.userId === user.id);
+    const purchased = !!lessonMaterial.lesson?.course?.userCourses?.some(
+      (uc) => uc.userId === user.id,
+    );
     if (!purchased) {
-      throw new NotFoundException('Tài liệu không tồn tại hoặc bạn chưa mua khóa học này');
+      throw new NotFoundException(
+        'Tài liệu không tồn tại hoặc bạn chưa mua khóa học này',
+      );
     }
 
     return this.buildPlaybackResponse(lessonMaterial, user?.id);
@@ -241,11 +345,20 @@ export class CourseService {
   private buildPlaybackResponse(lessonMaterial: any, userId?: string) {
     // Nếu không phải video thì trả về url trực tiếp
     if (lessonMaterial.type !== 'video') {
-      return { message: 'Lấy đường dẫn tài liệu thành công', data: { url: lessonMaterial.url } };
+      return {
+        message: 'Lấy đường dẫn tài liệu thành công',
+        data: { url: lessonMaterial.url },
+      };
     }
 
     const playbackToken = { path: `lesson-${lessonMaterial.url}`, userId };
-    const token = jsonwebtoken.sign(playbackToken, process.env.VIDEO_TOKEN_SECRET_KEY || '');
-    return { message: 'Lấy token phát lại thành công', data: { token, url: lessonMaterial.url } };
+    const token = jsonwebtoken.sign(
+      playbackToken,
+      process.env.VIDEO_TOKEN_SECRET_KEY || '',
+    );
+    return {
+      message: 'Lấy token phát lại thành công',
+      data: { token, url: lessonMaterial.url },
+    };
   }
 }
