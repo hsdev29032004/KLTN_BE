@@ -85,12 +85,25 @@ export class AuthService {
     };
   }
   async register(registerDto: any) {
-    const { email, password, fullName } = registerDto;
+    if (!registerDto || typeof registerDto !== 'object') {
+      throw new UnauthorizedException('Invalid register payload');
+    }
+
+    // Support both `name` and `fullName` from client payloads
+    const email = registerDto.email;
+    const password = registerDto.password;
+    const fullName = registerDto.fullName ?? registerDto.name ?? '';
+    // normalize role to lowercase string
+    const role = typeof registerDto.role === 'string' ? registerDto.role.toLowerCase() : undefined;
 
     // Kiểm tra email đã tồn tại chưa
     const existed = await this.prisma.user.findUnique({ where: { email } });
     if (existed) {
       throw new UnauthorizedException('Email already exists');
+    }
+
+    if (!email || !password || !fullName || !role) {
+      throw new UnauthorizedException('Missing required fields');
     }
 
     // Hash password
@@ -102,6 +115,14 @@ export class AuthService {
       throw new UnauthorizedException('Default role not found');
     }
 
+    // Nếu client gửi role là 'teacher' thì gán role tương ứng, ngược lại dùng 'user'
+    let assignedRole = defaultRole;
+    if (role && role === ROLE_NAME.TEACHER.toLowerCase()) {
+      const teacherRole = await this.prisma.role.findFirst({ where: { name: ROLE_NAME.TEACHER } });
+      if (!teacherRole) throw new UnauthorizedException('Requested role not found');
+      assignedRole = teacherRole;
+    }
+
     // Tạo user mới
     const user = await this.prisma.user.create({
       data: {
@@ -109,7 +130,7 @@ export class AuthService {
         password: hash,
         fullName,
         slug: fullName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
-        roleId: defaultRole.id,
+        roleId: assignedRole.id,
       },
       include: {
         role: true,
