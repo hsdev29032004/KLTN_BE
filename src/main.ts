@@ -4,6 +4,7 @@ import { AppLogger } from './infras/loggers/logger.service';
 import { HttpLoggerInterceptor } from './infras/loggers/http-logger.interceptor';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import * as dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 
@@ -22,6 +23,23 @@ async function bootstrap() {
   });
 
   app.setGlobalPrefix('api');
+
+  // Swagger Configuration
+  const config = new DocumentBuilder()
+    .setTitle('KLTN API')
+    .setDescription('API documentation for KLTN Backend')
+    .setVersion('1.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+      },
+      'access_token',
+    )
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('docs', app, document);
 
   const logger = app.get(AppLogger);
 

@@ -10,13 +10,14 @@ import { RoleModule } from '../role/role.module';
 import { PermissionModule } from '../permission/permission.module';
 import { CourseModule } from '../course/course.module';
 import { ReviewModule } from '../review/review.module';
+import { SystemModule } from '../system/system.module';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { PermissionGuard } from '@/common/guards/permission.guard';
 import { PrismaService } from '@/infras/prisma/prisma.service';
 import { AuthMiddleware } from '@/core/middlewares/auth.middleware';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule, CourseModule, ReviewModule],
+  imports: [ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule, CourseModule, ReviewModule, SystemModule],
   controllers: [AppController],
   providers: [
     AppService,
