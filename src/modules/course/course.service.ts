@@ -66,7 +66,7 @@ export class CourseService {
     // Load courses and validate
     const courses = await this.prisma.course.findMany({
       where: { id: { in: courseIds }, isDeleted: false },
-      select: { id: true, price: true },
+      select: { id: true, price: true, userId: true },
     });
 
     if (courses.length !== courseIds.length) {
@@ -78,16 +78,25 @@ export class CourseService {
       0,
     );
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, availableAmount: true },
-    });
+    const [user, system] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, availableAmount: true },
+      }),
+      this.prisma.system.findUnique({
+        where: { id: 'system' },
+        select: { comissionRate: true },
+      }),
+    ]);
 
     if (!user) throw new NotFoundException('Người dùng không tồn tại');
+    if (!system) throw new NotFoundException('Hệ thống chưa được cấu hình');
 
     if ((user.availableAmount ?? 0) < total) {
       throw new BadRequestException('Không đủ số dư');
     }
+
+    const commissionRate = Number(system.comissionRate);
 
     const result = await this.prisma.$transaction(async (tx) => {
       const purchase = await tx.invoices.create({
@@ -127,6 +136,15 @@ export class CourseService {
         where: { id: userId },
         data: { availableAmount: { decrement: total } },
       });
+
+      // Credit each course owner based on commission rate
+      for (const c of courses) {
+        const ownerEarning = Math.floor(Number(c.price) * commissionRate / 100);
+        await tx.user.update({
+          where: { id: c.userId },
+          data: { availableAmount: { increment: ownerEarning } },
+        });
+      }
 
       return { purchase, details, userCourses };
     });

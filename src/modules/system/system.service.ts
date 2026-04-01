@@ -1,11 +1,46 @@
 import { Injectable } from '@nestjs/common';
 import { CreateSystemDto } from './dto/create-system.dto';
 import { UpdateSystemDto } from './dto/update-system.dto';
+import { UpdateSystemInfoDto } from './dto/update-system-info.dto';
 import { PrismaService } from '../../infras/prisma/prisma.service';
 
 @Injectable()
 export class SystemService {
   constructor(private prisma: PrismaService) { }
+
+  async getSystem() {
+    return this.prisma.system.findUnique({
+      where: { id: 'system' },
+      select: {
+        id: true,
+        timeRefund: true,
+        limitRefund: true,
+        comissionRate: true,
+        term: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  async updateSystem(updateSystemInfoDto: UpdateSystemInfoDto) {
+    return this.prisma.system.update({
+      where: { id: 'system' },
+      data: {
+        timeRefund: updateSystemInfoDto.timeRefund ?? undefined,
+        limitRefund: updateSystemInfoDto.limitRefund ?? undefined,
+        comissionRate: updateSystemInfoDto.comissionRate ?? undefined,
+        term: updateSystemInfoDto.term ?? undefined,
+      },
+      select: {
+        id: true,
+        timeRefund: true,
+        limitRefund: true,
+        comissionRate: true,
+        term: true,
+        updatedAt: true,
+      },
+    });
+  }
 
   async getBanks() {
     return this.prisma.bank.findMany({
