@@ -15,9 +15,10 @@ import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { PermissionGuard } from '@/common/guards/permission.guard';
 import { PrismaService } from '@/infras/prisma/prisma.service';
 import { AuthMiddleware } from '@/core/middlewares/auth.middleware';
+import { StatModule } from '../stat/stat.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule, CourseModule, ReviewModule, SystemModule],
+  imports: [ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule, CourseModule, ReviewModule, SystemModule, StatModule],
   controllers: [AppController],
   providers: [
     AppService,
