@@ -24,6 +24,7 @@ model User {
   availableAmount          Int?             @default(0)
   lockAmount               Int?             @default(0)
   slug                     String           @unique
+  introduce                String           @default("")
   processedReports         CourseReport[]   @relation("processor")
   reports                  CourseReport[]
   reviews                  CourseReview[]
@@ -183,6 +184,7 @@ model CourseTopic {
 
 model Conversation {
   id        String    @id @default(uuid())
+  name      String    @default("")
   courseId  String    @unique
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
