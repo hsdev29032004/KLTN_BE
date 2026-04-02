@@ -16,9 +16,10 @@ import { PermissionGuard } from '@/common/guards/permission.guard';
 import { PrismaService } from '@/infras/prisma/prisma.service';
 import { AuthMiddleware } from '@/core/middlewares/auth.middleware';
 import { StatModule } from '../stat/stat.module';
+import { ConservationModule } from '../conservation/conservation.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule, CourseModule, ReviewModule, SystemModule, StatModule],
+  imports: [ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule, CourseModule, ReviewModule, SystemModule, StatModule, ConservationModule],
   controllers: [AppController],
   providers: [
     AppService,
