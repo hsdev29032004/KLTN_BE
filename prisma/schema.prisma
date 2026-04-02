@@ -22,7 +22,6 @@ model User {
   deletedAt                DateTime?
   refreshToken             String?
   availableAmount          Int?             @default(0)
-  lockAmount               Int?             @default(0)
   slug                     String           @unique
   introduce                String           @default("")
   processedReports         CourseReport[]   @relation("processor")
@@ -292,10 +291,9 @@ model Transaction {
 
 model System {
   id            String   @id @default("system")
-  timeRefund    Int
-  limitRefund   Int
   comissionRate Decimal  @db.Decimal(5, 2)
   term          String
+  contact       String   @default("")
   updatedAt     DateTime @updatedAt
   banks         Bank[]
 

@@ -178,8 +178,31 @@ export class CourseService {
   }
 
   async findBySlugOrId(key: string, user: IUser) {
-    const course: any = await this.prisma.course.findFirst({
+    // Fetch a lightweight version first to determine ownership
+    const courseBasic = await this.prisma.course.findFirst({
       where: { OR: [{ slug: key }, { id: key }], isDeleted: false },
+      select: { id: true, userId: true },
+    });
+
+    if (!courseBasic) throw new NotFoundException('Khóa học không tồn tại');
+
+    // Determine privileged access before building the full query
+    const isOwner = !!user && user.id === courseBasic.userId;
+    const isSpecialRole = !!user && !!user.role?.name &&
+      user.role.name !== ROLE_NAME.USER &&
+      user.role.name !== ROLE_NAME.TEACHER;
+    const isPrivileged = isOwner || isSpecialRole;
+
+    const lessonWhere = isPrivileged
+      ? { isDeleted: false }
+      : { isDeleted: false, status: 'published' as const };
+
+    const materialWhere = isPrivileged
+      ? { isDeleted: false }
+      : { isDeleted: false, status: 'published' as const };
+
+    const course: any = await this.prisma.course.findUnique({
+      where: { id: courseBasic.id },
       include: {
         user: {
           select: {
@@ -206,14 +229,14 @@ export class CourseService {
           },
         },
         lessons: {
-          where: { isDeleted: false, status: 'published' },
+          where: lessonWhere,
           select: {
             id: true,
             name: true,
             status: true,
             createdAt: true,
             materials: {
-              where: { isDeleted: false, status: 'published' },
+              where: materialWhere,
               select: {
                 id: true,
                 name: true,
@@ -251,30 +274,13 @@ export class CourseService {
       },
     });
 
-    if (!course) throw new NotFoundException('Khóa học không tồn tại');
-
-    // Determine whether we should expose material URLs:
-    // - course owner, non-user roles (e.g., admin), or users who purchased the course can see URLs
-    let allowFullAccess = false;
-    if (user) {
-      const courseOwnerId = course.user?.id;
-      if (user.id === courseOwnerId) {
-        allowFullAccess = true;
-      }
-
-      const roleName = user.role?.name;
-      if (roleName && roleName !== ROLE_NAME.USER && roleName !== ROLE_NAME.TEACHER) {
-        allowFullAccess = true;
-      }
-
-      console.log(allowFullAccess, 'allowFullAccess');
-
-      if (!allowFullAccess) {
-        console.log(123123);
-
-        const purchased = await this.prisma.userCourse.findFirst({ where: { courseId: course.id, userId: user.id } });
-        if (purchased) allowFullAccess = true;
-      }
+    // For non-privileged users, additionally check if they purchased the course
+    let allowFullAccess = isPrivileged;
+    if (!allowFullAccess && user) {
+      const purchased = await this.prisma.userCourse.findFirst({
+        where: { courseId: course.id, userId: user.id },
+      });
+      if (purchased) allowFullAccess = true;
     }
 
     return { message: 'Lấy thông tin khóa học thành công', data: course, canAccess: allowFullAccess };

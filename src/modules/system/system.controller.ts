@@ -22,7 +22,7 @@ export class SystemController {
   constructor(private readonly systemService: SystemService) { }
 
   @Get()
-  @PublicAPI()
+  @Roles('admin')
   @ApiOperation({ summary: 'Get system information' })
   @ApiResponse({
     status: 200,
@@ -30,8 +30,6 @@ export class SystemController {
     schema: {
       example: {
         id: 'system',
-        timeRefund: 7,
-        limitRefund: 3,
         comissionRate: 5.5,
         term: 'Terms and conditions...',
         updatedAt: '2024-01-01T00:00:00Z',

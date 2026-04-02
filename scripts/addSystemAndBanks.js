@@ -17,15 +17,11 @@ async function main() {
     const system = await prisma.system.upsert({
         where: { id: 'system' },
         update: {
-            timeRefund: 72,
-            limitRefund: 3,
             comissionRate: '5.00',
             term: 'Refund allowed within 72 hours after purchase if less than 30 percent content is consumed.',
         },
         create: {
             id: 'system',
-            timeRefund: 72,
-            limitRefund: 3,
             comissionRate: '5.00',
             term: 'Refund allowed within 72 hours after purchase if less than 30 percent content is consumed.',
         },

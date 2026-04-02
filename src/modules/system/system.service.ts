@@ -13,8 +13,7 @@ export class SystemService {
       where: { id: 'system' },
       select: {
         id: true,
-        timeRefund: true,
-        limitRefund: true,
+        contact: true,
         comissionRate: true,
         term: true,
         updatedAt: true,
@@ -26,15 +25,13 @@ export class SystemService {
     return this.prisma.system.update({
       where: { id: 'system' },
       data: {
-        timeRefund: updateSystemInfoDto.timeRefund ?? undefined,
-        limitRefund: updateSystemInfoDto.limitRefund ?? undefined,
         comissionRate: updateSystemInfoDto.comissionRate ?? undefined,
+        contact: updateSystemInfoDto.contact ?? undefined,
         term: updateSystemInfoDto.term ?? undefined,
       },
       select: {
         id: true,
-        timeRefund: true,
-        limitRefund: true,
+        contact: true,
         comissionRate: true,
         term: true,
         updatedAt: true,
