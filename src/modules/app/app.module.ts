@@ -17,9 +17,10 @@ import { PrismaService } from '@/infras/prisma/prisma.service';
 import { AuthMiddleware } from '@/core/middlewares/auth.middleware';
 import { StatModule } from '../stat/stat.module';
 import { ConservationModule } from '../conservation/conservation.module';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule, CourseModule, ReviewModule, SystemModule, StatModule, ConservationModule],
+  imports: [ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule, CourseModule, ReviewModule, SystemModule, StatModule, ConservationModule, CloudinaryModule],
   controllers: [AppController],
   providers: [
     AppService,
