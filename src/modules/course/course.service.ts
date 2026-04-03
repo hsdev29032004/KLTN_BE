@@ -119,6 +119,7 @@ export class CourseService {
               coursePurchaseId: purchase.id,
               courseId: c.id,
               price: c.price,
+              commissionRate: system.comissionRate,
               status: 'paid',
             },
           }),
