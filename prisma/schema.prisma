@@ -35,6 +35,7 @@ model User {
   messages                 Message[]
   transactions             Transaction[]
   userCourses              UserCourse[]
+  conversationMembers      ConversationMember[]
   ban                      Ban?             @relation(fields: [banId], references: [id])
   role                     Role             @relation(fields: [roleId], references: [id])
 
@@ -191,8 +192,23 @@ model Conversation {
   deletedAt DateTime?
   course    Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
   messages  Message[]
+  members   ConversationMember[]
 
   @@map("conversations")
+}
+
+model ConversationMember {
+  id             String       @id @default(uuid())
+  conversationId String
+  userId         String
+  isHost         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@map("conversation_members")
 }
 
 model Message {
@@ -335,12 +351,17 @@ enum CourseStatus {
   draft
   pending
   published
+  deleted
+  update
+  outdated
 }
 
 enum LessonStatus {
   draft
   pending
   published
+  outdated
+  deleted
 }
 
 enum MaterialType {
