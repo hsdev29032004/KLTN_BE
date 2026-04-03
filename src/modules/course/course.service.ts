@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '@/infras/prisma/prisma.service';
 import * as jsonwebtoken from 'jsonwebtoken';
 import type { IUser } from '@/shared/types/user.type';
@@ -45,11 +50,14 @@ const COURSE_LIST_SELECT = {
 
 @Injectable()
 export class CourseService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async findAll() {
     const courses = await this.prisma.course.findMany({
-      where: { isDeleted: false, status: { in: [CourseStatus.published, CourseStatus.outdated] } },
+      where: {
+        isDeleted: false,
+        status: { in: [CourseStatus.published, CourseStatus.outdated] },
+      },
       select: COURSE_LIST_SELECT,
       orderBy: { createdAt: 'desc' },
     });
@@ -139,7 +147,9 @@ export class CourseService {
         });
         if (conv) {
           const existingMember = await tx.conversationMember.findUnique({
-            where: { conversationId_userId: { conversationId: conv.id, userId } },
+            where: {
+              conversationId_userId: { conversationId: conv.id, userId },
+            },
           });
           if (!existingMember) {
             await tx.conversationMember.create({
@@ -156,7 +166,9 @@ export class CourseService {
 
       // Credit each course owner based on commission rate
       for (const c of courses) {
-        const ownerEarning = Math.floor(Number(c.price) * commissionRate / 100);
+        const ownerEarning = Math.floor(
+          (Number(c.price) * commissionRate) / 100,
+        );
         await tx.user.update({
           where: { id: c.userId },
           data: { availableAmount: { increment: ownerEarning } },
@@ -171,7 +183,11 @@ export class CourseService {
 
   async findByIds(ids: string[]) {
     const courses = await this.prisma.course.findMany({
-      where: { id: { in: ids }, isDeleted: false, status: { in: [CourseStatus.published, CourseStatus.outdated] } },
+      where: {
+        id: { in: ids },
+        isDeleted: false,
+        status: { in: [CourseStatus.published, CourseStatus.outdated] },
+      },
       select: COURSE_LIST_SELECT,
     });
 
@@ -205,18 +221,26 @@ export class CourseService {
 
     // Determine privileged access before building the full query
     const isOwner = !!user && user.id === courseBasic.userId;
-    const isSpecialRole = !!user && !!user.role?.name &&
+    const isSpecialRole =
+      !!user &&
+      !!user.role?.name &&
       user.role.name !== ROLE_NAME.USER &&
       user.role.name !== ROLE_NAME.TEACHER;
     const isPrivileged = isOwner || isSpecialRole;
 
     const lessonWhere = isPrivileged
       ? { isDeleted: false }
-      : { isDeleted: false, status: { in: [LessonStatus.published, LessonStatus.outdated] } };
+      : {
+          isDeleted: false,
+          status: { in: [LessonStatus.published, LessonStatus.outdated] },
+        };
 
     const materialWhere = isPrivileged
       ? { isDeleted: false }
-      : { isDeleted: false, status: { in: [LessonStatus.published, LessonStatus.outdated] } };
+      : {
+          isDeleted: false,
+          status: { in: [LessonStatus.published, LessonStatus.outdated] },
+        };
 
     const course: any = await this.prisma.course.findUnique({
       where: { id: courseBasic.id },
@@ -300,7 +324,11 @@ export class CourseService {
       if (purchased) allowFullAccess = true;
     }
 
-    return { message: 'Lấy thông tin khóa học thành công', data: course, canAccess: allowFullAccess };
+    return {
+      message: 'Lấy thông tin khóa học thành công',
+      data: course,
+      canAccess: allowFullAccess,
+    };
   }
 
   async findMyCourses(userId: string) {
@@ -316,7 +344,11 @@ export class CourseService {
     }
 
     const courses = await this.prisma.course.findMany({
-      where: { id: { in: courseIds }, isDeleted: false, status: { in: [CourseStatus.published, CourseStatus.outdated] } },
+      where: {
+        id: { in: courseIds },
+        isDeleted: false,
+        status: { in: [CourseStatus.published, CourseStatus.outdated] },
+      },
       select: COURSE_LIST_SELECT as any,
       orderBy: { createdAt: 'desc' },
     });
@@ -332,14 +364,9 @@ export class CourseService {
       where: {
         id: materialId,
         isDeleted: false,
-        status: { in: [LessonStatus.published, LessonStatus.outdated] },
         lesson: {
           isDeleted: false,
-          status: { in: [LessonStatus.published, LessonStatus.outdated] },
-          course: {
-            isDeleted: false,
-            status: { in: [CourseStatus.published, CourseStatus.outdated] },
-          },
+          course: { isDeleted: false },
         },
       },
       include: {
@@ -355,6 +382,39 @@ export class CourseService {
 
     if (!lessonMaterial) {
       throw new NotFoundException('Tài liệu không tồn tại');
+    }
+
+    // Determine if user is privileged (owner or admin)
+    const courseOwnerId = lessonMaterial.lesson?.course?.userId;
+    const isOwner = !!user && user.id === courseOwnerId;
+    const roleName = user?.role?.name;
+    const isPrivileged =
+      isOwner ||
+      (!!roleName &&
+        roleName !== ROLE_NAME.USER &&
+        roleName !== ROLE_NAME.TEACHER);
+
+    // For non-privileged users, enforce status restrictions
+    if (!isPrivileged) {
+      const validLessonStatuses: LessonStatus[] = [
+        LessonStatus.published,
+        LessonStatus.outdated,
+      ];
+      const validCourseStatuses: CourseStatus[] = [
+        CourseStatus.published,
+        CourseStatus.outdated,
+      ];
+      if (
+        !validLessonStatuses.includes(lessonMaterial.status) ||
+        !validLessonStatuses.includes(
+          lessonMaterial.lesson?.status as LessonStatus,
+        ) ||
+        !validCourseStatuses.includes(
+          lessonMaterial.lesson?.course?.status as CourseStatus,
+        )
+      ) {
+        throw new NotFoundException('Tài liệu không tồn tại');
+      }
     }
 
     // ── Kiểm tra quyền truy cập ──────────────────────────────────────────────
@@ -373,40 +433,7 @@ export class CourseService {
       };
     }
 
-    // Nếu là preview cho phép playback mà không cần mua
-    if (lessonMaterial.isPreview) {
-      return this.buildPlaybackResponse(lessonMaterial, user?.id);
-    }
-
-    // Nếu không phải preview, cần có user và kiểm tra quyền
-    if (!user) {
-      throw new NotFoundException(
-        'Tài liệu không tồn tại hoặc bạn chưa mua khóa học này',
-      );
-    }
-
-    // Nếu user là chủ khóa học (instructor) => cho phép
-    const courseOwnerId = lessonMaterial.lesson?.course?.userId;
-    if (user.id === courseOwnerId) {
-      return this.buildPlaybackResponse(lessonMaterial, user?.id);
-    }
-
-    // Nếu role không phải 'user' hoặc 'teacher' => cho phép (ví dụ admin)
-    const roleName = user.role?.name;
-    if (roleName && roleName !== ROLE_NAME.USER && roleName !== ROLE_NAME.TEACHER) {
-      return this.buildPlaybackResponse(lessonMaterial, user?.id);
-    }
-
-    // Cuối cùng kiểm tra đã mua chưa
-    const purchased = !!lessonMaterial.lesson?.course?.userCourses?.some(
-      (uc) => uc.userId === user.id,
-    );
-    if (!purchased) {
-      throw new NotFoundException(
-        'Tài liệu không tồn tại hoặc bạn chưa mua khóa học này',
-      );
-    }
-
+    // Quyền truy cập đã được xác nhận bởi checkAccess → cho phép phát video
     return this.buildPlaybackResponse(lessonMaterial, user?.id);
   }
 
@@ -446,7 +473,8 @@ export class CourseService {
       where: { id: courseId, isDeleted: false },
     });
     if (!course) throw new NotFoundException('Khóa học không tồn tại');
-    if (course.userId !== userId) throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
+    if (course.userId !== userId)
+      throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
 
     const lesson = await this.prisma.lesson.create({
       data: {
@@ -461,13 +489,18 @@ export class CourseService {
 
   // ── Create Lesson Material ────────────────────────────────────────────────
 
-  async createLessonMaterial(userId: string, lessonId: string, dto: CreateLessonMaterialDto) {
+  async createLessonMaterial(
+    userId: string,
+    lessonId: string,
+    dto: CreateLessonMaterialDto,
+  ) {
     const lesson = await this.prisma.lesson.findFirst({
       where: { id: lessonId, isDeleted: false },
       include: { course: { select: { userId: true } } },
     });
     if (!lesson) throw new NotFoundException('Bài học không tồn tại');
-    if (lesson.course.userId !== userId) throw new ForbiddenException('Bạn không có quyền thao tác bài học này');
+    if (lesson.course.userId !== userId)
+      throw new ForbiddenException('Bạn không có quyền thao tác bài học này');
 
     const material = await this.prisma.lessonMaterial.create({
       data: {
@@ -489,7 +522,8 @@ export class CourseService {
       where: { id: courseId, isDeleted: false },
     });
     if (!course) throw new NotFoundException('Khóa học không tồn tại');
-    if (course.userId !== userId) throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
+    if (course.userId !== userId)
+      throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
 
     const data: any = { ...dto };
 
@@ -521,7 +555,8 @@ export class CourseService {
       include: { course: { select: { userId: true } } },
     });
     if (!lesson) throw new NotFoundException('Bài học không tồn tại');
-    if (lesson.course.userId !== userId) throw new ForbiddenException('Bạn không có quyền thao tác bài học này');
+    if (lesson.course.userId !== userId)
+      throw new ForbiddenException('Bạn không có quyền thao tác bài học này');
 
     const updated = await this.prisma.lesson.update({
       where: { id: lessonId },
@@ -533,13 +568,20 @@ export class CourseService {
 
   // ── Update Lesson Material (outdate logic) ────────────────────────────────
 
-  async updateLessonMaterial(userId: string, materialId: string, dto: UpdateLessonMaterialDto) {
+  async updateLessonMaterial(
+    userId: string,
+    materialId: string,
+    dto: UpdateLessonMaterialDto,
+  ) {
     const material = await this.prisma.lessonMaterial.findFirst({
       where: { id: materialId, isDeleted: false },
-      include: { lesson: { include: { course: { select: { userId: true } } } } },
+      include: {
+        lesson: { include: { course: { select: { userId: true } } } },
+      },
     });
     if (!material) throw new NotFoundException('Tài liệu không tồn tại');
-    if (material.lesson.course.userId !== userId) throw new ForbiddenException('Bạn không có quyền thao tác tài liệu này');
+    if (material.lesson.course.userId !== userId)
+      throw new ForbiddenException('Bạn không có quyền thao tác tài liệu này');
 
     // Nếu material đã published thì set cũ thành outdated và tạo bản ghi mới (draft)
     if (material.status === LessonStatus.published) {
@@ -560,7 +602,10 @@ export class CourseService {
         }),
       ]);
 
-      return { message: 'Cập nhật tài liệu thành công (tạo bản mới)', data: newMaterial };
+      return {
+        message: 'Cập nhật tài liệu thành công (tạo bản mới)',
+        data: newMaterial,
+      };
     }
 
     // Nếu chưa published thì cập nhật trực tiếp
@@ -583,20 +628,33 @@ export class CourseService {
       where: { id: courseId, isDeleted: false },
     });
     if (!course) throw new NotFoundException('Khóa học không tồn tại');
-    if (course.userId !== userId) throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
+    if (course.userId !== userId)
+      throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
 
     await this.prisma.$transaction([
       this.prisma.course.update({
         where: { id: courseId },
-        data: { status: CourseStatus.outdated, isDeleted: true, deletedAt: new Date() },
+        data: {
+          status: CourseStatus.outdated,
+          isDeleted: true,
+          deletedAt: new Date(),
+        },
       }),
       this.prisma.lesson.updateMany({
         where: { courseId, isDeleted: false },
-        data: { status: LessonStatus.outdated, isDeleted: true, deletedAt: new Date() },
+        data: {
+          status: LessonStatus.outdated,
+          isDeleted: true,
+          deletedAt: new Date(),
+        },
       }),
       this.prisma.lessonMaterial.updateMany({
         where: { lesson: { courseId }, isDeleted: false },
-        data: { status: LessonStatus.outdated, isDeleted: true, deletedAt: new Date() },
+        data: {
+          status: LessonStatus.outdated,
+          isDeleted: true,
+          deletedAt: new Date(),
+        },
       }),
     ]);
 
@@ -611,7 +669,8 @@ export class CourseService {
       include: { course: { select: { userId: true } } },
     });
     if (!lesson) throw new NotFoundException('Bài học không tồn tại');
-    if (lesson.course.userId !== userId) throw new ForbiddenException('Bạn không có quyền thao tác bài học này');
+    if (lesson.course.userId !== userId)
+      throw new ForbiddenException('Bạn không có quyền thao tác bài học này');
 
     await this.prisma.$transaction([
       this.prisma.lesson.update({
@@ -632,14 +691,20 @@ export class CourseService {
   async deleteLessonMaterial(userId: string, materialId: string) {
     const material = await this.prisma.lessonMaterial.findFirst({
       where: { id: materialId, isDeleted: false },
-      include: { lesson: { include: { course: { select: { userId: true } } } } },
+      include: {
+        lesson: { include: { course: { select: { userId: true } } } },
+      },
     });
     if (!material) throw new NotFoundException('Tài liệu không tồn tại');
-    if (material.lesson.course.userId !== userId) throw new ForbiddenException('Bạn không có quyền thao tác tài liệu này');
+    if (material.lesson.course.userId !== userId)
+      throw new ForbiddenException('Bạn không có quyền thao tác tài liệu này');
 
     await this.prisma.lessonMaterial.update({
       where: { id: materialId },
-      data: { status: LessonStatus.outdated, isDeleted: material.status === "draft" },
+      data: {
+        status: LessonStatus.outdated,
+        isDeleted: material.status === 'draft',
+      },
     });
 
     return { message: 'Xóa tài liệu thành công' };
@@ -660,7 +725,8 @@ export class CourseService {
       },
     });
     if (!course) throw new NotFoundException('Khóa học không tồn tại');
-    if (course.userId !== userId) throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
+    if (course.userId !== userId)
+      throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
 
     if (course.status === CourseStatus.published) {
       // Kiểm tra xem có item nào chưa published không
@@ -683,7 +749,10 @@ export class CourseService {
     }
 
     // Khóa học chưa published → chuyển sang pending
-    if (course.status === CourseStatus.draft || course.status === CourseStatus.outdated) {
+    if (
+      course.status === CourseStatus.draft ||
+      course.status === CourseStatus.outdated
+    ) {
       await this.prisma.course.update({
         where: { id: courseId },
         data: { status: CourseStatus.pending },
@@ -692,7 +761,9 @@ export class CourseService {
       return { message: 'Gửi xét duyệt khóa học thành công' };
     }
 
-    throw new BadRequestException('Khóa học đang ở trạng thái không thể gửi xét duyệt');
+    throw new BadRequestException(
+      'Khóa học đang ở trạng thái không thể gửi xét duyệt',
+    );
   }
 
   // ── Admin Publish Course ──────────────────────────────────────────────────
@@ -711,7 +782,10 @@ export class CourseService {
     });
     if (!course) throw new NotFoundException('Khóa học không tồn tại');
 
-    if (course.status !== CourseStatus.pending && course.status !== CourseStatus.update) {
+    if (
+      course.status !== CourseStatus.pending &&
+      course.status !== CourseStatus.update
+    ) {
       throw new BadRequestException('Khóa học không ở trạng thái chờ duyệt');
     }
 
@@ -734,14 +808,22 @@ export class CourseService {
         if (lesson.status !== LessonStatus.published) {
           await tx.lesson.update({
             where: { id: lesson.id },
-            data: { status: LessonStatus.published, publisherId: adminId, publishedAt: now },
+            data: {
+              status: LessonStatus.published,
+              publisherId: adminId,
+              publishedAt: now,
+            },
           });
         }
         for (const material of lesson.materials) {
           if (material.status !== LessonStatus.published) {
             await tx.lessonMaterial.update({
               where: { id: material.id },
-              data: { status: LessonStatus.published, publisherId: adminId, publishedAt: now },
+              data: {
+                status: LessonStatus.published,
+                publisherId: adminId,
+                publishedAt: now,
+              },
             });
           }
         }
@@ -815,7 +897,11 @@ export class CourseService {
     const roleName = user.role?.name;
     console.log(user.role);
 
-    if (roleName && roleName !== ROLE_NAME.USER && roleName !== ROLE_NAME.TEACHER) {
+    if (
+      roleName &&
+      roleName !== ROLE_NAME.USER &&
+      roleName !== ROLE_NAME.TEACHER
+    ) {
       console.log(4);
       return true;
     }
