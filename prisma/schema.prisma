@@ -36,6 +36,8 @@ model User {
   transactions             Transaction[]
   userCourses              UserCourse[]
   conversationMembers      ConversationMember[]
+  teacherApprovals         CourseApproval[] @relation("teacherApprovals")
+  adminApprovals           CourseApproval[] @relation("adminApprovals")
   ban                      Ban?             @relation(fields: [banId], references: [id])
   role                     Role             @relation(fields: [roleId], references: [id])
 
@@ -116,6 +118,7 @@ model Course {
   detail_invoices DetailInvoices[]
   lessons         Lesson[]
   userCourses     UserCourse[]
+  approvals       CourseApproval[]
 
   @@map("courses")
 }
@@ -348,6 +351,29 @@ model DetailInvoices {
   @@map("detail_invoices")
 }
 
+model CourseApproval {
+  id          String               @id @default(uuid())
+  courseId     String
+  teacherId   String
+  description String
+  status      CourseApprovalStatus @default(pending)
+  reason      String?
+  adminId     String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  course      Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher     User                 @relation("teacherApprovals", fields: [teacherId], references: [id])
+  admin       User?                @relation("adminApprovals", fields: [adminId], references: [id])
+
+  @@map("course_approvals")
+}
+
+enum CourseApprovalStatus {
+  pending
+  approved
+  rejected
+}
+
 enum CourseStatus {
   draft
   pending
@@ -355,6 +381,8 @@ enum CourseStatus {
   deleted
   update
   outdated
+  rejected
+  need_update
 }
 
 enum LessonStatus {

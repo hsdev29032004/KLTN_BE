@@ -11,10 +11,18 @@ import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { CreateLessonMaterialDto } from './dto/create-lesson-material.dto';
 import { UpdateLessonMaterialDto } from './dto/update-lesson-material.dto';
+import { SubmitReviewDto } from './dto/submit-review.dto';
+import { RejectCourseDto } from './dto/reject-course.dto';
 
 @Controller('course')
 export class CourseController {
   constructor(private readonly courseService: CourseService) { }
+
+  @Roles('admin')
+  @Get('admin/all')
+  findAllForAdmin(@Query() query: Record<string, string>) {
+    return this.courseService.findAllForAdmin(query);
+  }
 
   @PublicAPI()
   @Get()
@@ -100,14 +108,20 @@ export class CourseController {
 
   @Roles('teacher')
   @Post(':courseId/submit-review')
-  submitForReview(@User() user: IUser, @Param('courseId') courseId: string) {
-    return this.courseService.submitForReview(user.id, courseId);
+  submitForReview(@User() user: IUser, @Param('courseId') courseId: string, @Body() dto: SubmitReviewDto) {
+    return this.courseService.submitForReview(user.id, courseId, dto.description);
   }
 
   @Roles('admin')
   @Post(':courseId/publish')
   publishCourse(@User() user: IUser, @Param('courseId') courseId: string) {
     return this.courseService.publishCourse(user.id, courseId);
+  }
+
+  @Roles('admin')
+  @Post(':courseId/reject')
+  rejectCourse(@User() user: IUser, @Param('courseId') courseId: string, @Body() dto: RejectCourseDto) {
+    return this.courseService.rejectCourse(user.id, courseId, dto.reason);
   }
 
   @Roles('teacher')

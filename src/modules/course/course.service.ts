@@ -50,19 +50,78 @@ const COURSE_LIST_SELECT = {
 
 @Injectable()
 export class CourseService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async findAll() {
     const courses = await this.prisma.course.findMany({
       where: {
         isDeleted: false,
-        status: { in: [CourseStatus.published, CourseStatus.outdated] },
+        status: { in: [CourseStatus.published, CourseStatus.update, CourseStatus.need_update] },
       },
       select: COURSE_LIST_SELECT,
       orderBy: { createdAt: 'desc' },
     });
 
     return { message: 'Lấy danh sách khóa học thành công', data: courses };
+  }
+
+  async findAllForAdmin(query: Record<string, string>) {
+    const {
+      status,
+      userId,
+      page = '1',
+      limit = '20',
+    } = query;
+
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.max(1, Math.min(100, parseInt(limit) || 20));
+
+    const where: any = { isDeleted: false };
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (userId) {
+      where.userId = userId;
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.course.findMany({
+        where,
+        select: {
+          ...COURSE_LIST_SELECT,
+          description: true,
+          publishedAt: true,
+          approvals: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: {
+              id: true,
+              status: true,
+              description: true,
+              reason: true,
+              createdAt: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
+      }),
+      this.prisma.course.count({ where }),
+    ]);
+
+    return {
+      message: 'Lấy danh sách khóa học thành công',
+      data,
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    };
   }
 
   async purchaseCourses(userId: string, courseIds: string[]) {
@@ -186,7 +245,7 @@ export class CourseService {
       where: {
         id: { in: ids },
         isDeleted: false,
-        status: { in: [CourseStatus.published, CourseStatus.outdated] },
+        status: { in: [CourseStatus.published, CourseStatus.update, CourseStatus.need_update] },
       },
       select: COURSE_LIST_SELECT,
     });
@@ -231,16 +290,16 @@ export class CourseService {
     const lessonWhere = isPrivileged
       ? { isDeleted: false }
       : {
-          isDeleted: false,
-          status: { in: [LessonStatus.published, LessonStatus.outdated] },
-        };
+        isDeleted: false,
+        status: { in: [LessonStatus.published, LessonStatus.outdated] },
+      };
 
     const materialWhere = isPrivileged
       ? { isDeleted: false }
       : {
-          isDeleted: false,
-          status: { in: [LessonStatus.published, LessonStatus.outdated] },
-        };
+        isDeleted: false,
+        status: { in: [LessonStatus.published, LessonStatus.outdated] },
+      };
 
     const course: any = await this.prisma.course.findUnique({
       where: { id: courseBasic.id },
@@ -293,6 +352,23 @@ export class CourseService {
         },
         _count: {
           select: { reviews: true, userCourses: true },
+        },
+        approvals: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            status: true,
+            description: true,
+            reason: true,
+            createdAt: true,
+            updatedAt: true,
+            teacher: {
+              select: { id: true, fullName: true, avatar: true },
+            },
+            admin: {
+              select: { id: true, fullName: true, avatar: true },
+            },
+          },
         },
         reviews: {
           where: { isDeleted: false },
@@ -347,7 +423,7 @@ export class CourseService {
       where: {
         id: { in: courseIds },
         isDeleted: false,
-        status: { in: [CourseStatus.published, CourseStatus.outdated] },
+        status: { in: [CourseStatus.published, CourseStatus.update, CourseStatus.need_update] },
       },
       select: COURSE_LIST_SELECT as any,
       orderBy: { createdAt: 'desc' },
@@ -402,7 +478,8 @@ export class CourseService {
       ];
       const validCourseStatuses: CourseStatus[] = [
         CourseStatus.published,
-        CourseStatus.outdated,
+        CourseStatus.update,
+        CourseStatus.need_update,
       ];
       if (
         !validLessonStatuses.includes(lessonMaterial.status) ||
@@ -576,14 +653,41 @@ export class CourseService {
     const material = await this.prisma.lessonMaterial.findFirst({
       where: { id: materialId, isDeleted: false },
       include: {
-        lesson: { include: { course: { select: { userId: true } } } },
+        lesson: {
+          include: {
+            course: { select: { userId: true, status: true } },
+          },
+        },
       },
     });
     if (!material) throw new NotFoundException('Tài liệu không tồn tại');
     if (material.lesson.course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác tài liệu này');
 
-    // Nếu material đã published thì set cũ thành outdated và tạo bản ghi mới (draft)
+    const courseStatus = material.lesson.course.status as CourseStatus;
+    if (
+      courseStatus === CourseStatus.pending ||
+      courseStatus === CourseStatus.update
+    ) {
+      throw new BadRequestException(
+        'Không thể chỉnh sửa tài liệu khi khóa học đang chờ phê duyệt',
+      );
+    }
+
+    // draft → cập nhật trực tiếp, không tạo bản outdated
+    if (material.status === LessonStatus.draft) {
+      const updated = await this.prisma.lessonMaterial.update({
+        where: { id: materialId },
+        data: {
+          ...(dto.name !== undefined && { name: dto.name }),
+          ...(dto.url !== undefined && { url: dto.url }),
+          ...(dto.type !== undefined && { type: dto.type as MaterialType }),
+        },
+      });
+      return { message: 'Cập nhật tài liệu thành công', data: updated };
+    }
+
+    // published → đánh dấu outdated, tạo bản nháp mới
     if (material.status === LessonStatus.published) {
       const [, newMaterial] = await this.prisma.$transaction([
         this.prisma.lessonMaterial.update({
@@ -608,17 +712,8 @@ export class CourseService {
       };
     }
 
-    // Nếu chưa published thì cập nhật trực tiếp
-    const updated = await this.prisma.lessonMaterial.update({
-      where: { id: materialId },
-      data: {
-        ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.url !== undefined && { url: dto.url }),
-        ...(dto.type !== undefined && { type: dto.type as MaterialType }),
-      },
-    });
-
-    return { message: 'Cập nhật tài liệu thành công', data: updated };
+    // outdated / deleted → không cho sửa
+    throw new BadRequestException('Tài liệu đang ở trạng thái không thể chỉnh sửa');
   }
 
   // ── Delete Course ─────────────────────────────────────────────────────────
@@ -672,16 +767,25 @@ export class CourseService {
     if (lesson.course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác bài học này');
 
-    await this.prisma.$transaction([
-      this.prisma.lesson.update({
-        where: { id: lessonId },
-        data: { status: LessonStatus.outdated },
-      }),
-      this.prisma.lessonMaterial.updateMany({
-        where: { lessonId, isDeleted: false },
-        data: { status: LessonStatus.outdated },
-      }),
-    ]);
+    if (lesson.status === LessonStatus.draft) {
+      // Draft lesson → xóa thật kèm toàn bộ tài liệu
+      await this.prisma.$transaction([
+        this.prisma.lessonMaterial.deleteMany({ where: { lessonId } }),
+        this.prisma.lesson.delete({ where: { id: lessonId } }),
+      ]);
+    } else {
+      // Published lesson → outdated, toàn bộ tài liệu → outdated
+      await this.prisma.$transaction([
+        this.prisma.lesson.update({
+          where: { id: lessonId },
+          data: { status: LessonStatus.outdated },
+        }),
+        this.prisma.lessonMaterial.updateMany({
+          where: { lessonId, isDeleted: false, status: { not: LessonStatus.deleted } },
+          data: { status: LessonStatus.outdated },
+        }),
+      ]);
+    }
 
     return { message: 'Xóa bài học thành công' };
   }
@@ -699,71 +803,75 @@ export class CourseService {
     if (material.lesson.course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác tài liệu này');
 
-    await this.prisma.lessonMaterial.update({
-      where: { id: materialId },
-      data: {
-        status: LessonStatus.outdated,
-        isDeleted: material.status === 'draft',
-      },
-    });
+    if (material.status === LessonStatus.draft) {
+      // Draft → xóa thật
+      await this.prisma.lessonMaterial.delete({ where: { id: materialId } });
+    } else {
+      // Published → outdated
+      await this.prisma.lessonMaterial.update({
+        where: { id: materialId },
+        data: { status: LessonStatus.outdated },
+      });
+    }
 
     return { message: 'Xóa tài liệu thành công' };
   }
 
   // ── Submit for Review ─────────────────────────────────────────────────────
 
-  async submitForReview(userId: string, courseId: string) {
+  async submitForReview(userId: string, courseId: string, description: string) {
     const course = await this.prisma.course.findFirst({
       where: { id: courseId, isDeleted: false },
-      include: {
-        lessons: {
-          where: { isDeleted: false },
-          include: {
-            materials: { where: { isDeleted: false } },
-          },
-        },
-      },
     });
     if (!course) throw new NotFoundException('Khóa học không tồn tại');
     if (course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
 
-    if (course.status === CourseStatus.published) {
-      // Kiểm tra xem có item nào chưa published không
-      const hasUnpublished =
-        course.lessons.some((l) => l.status !== LessonStatus.published) ||
-        course.lessons.some((l) =>
-          l.materials.some((m) => m.status !== LessonStatus.published),
-        );
+    const isFirstPublish = course.publishedAt === null;
 
-      if (!hasUnpublished) {
-        throw new BadRequestException('Không có nội dung nào cần xét duyệt');
+    if (isFirstPublish) {
+      // Chưa từng published → pending
+      const validStatuses: CourseStatus[] = [CourseStatus.draft, CourseStatus.rejected];
+      if (!validStatuses.includes(course.status)) {
+        throw new BadRequestException('Khóa học đang ở trạng thái không thể gửi xét duyệt');
       }
 
-      await this.prisma.course.update({
-        where: { id: courseId },
-        data: { status: CourseStatus.update },
-      });
-
-      return { message: 'Gửi xét duyệt cập nhật khóa học thành công' };
-    }
-
-    // Khóa học chưa published → chuyển sang pending
-    if (
-      course.status === CourseStatus.draft ||
-      course.status === CourseStatus.outdated
-    ) {
-      await this.prisma.course.update({
-        where: { id: courseId },
-        data: { status: CourseStatus.pending },
-      });
+      await this.prisma.$transaction([
+        this.prisma.course.update({
+          where: { id: courseId },
+          data: { status: CourseStatus.pending },
+        }),
+        this.prisma.courseApproval.create({
+          data: { courseId, teacherId: userId, description },
+        }),
+      ]);
 
       return { message: 'Gửi xét duyệt khóa học thành công' };
     }
 
-    throw new BadRequestException(
-      'Khóa học đang ở trạng thái không thể gửi xét duyệt',
-    );
+    // Đã từng published → update
+    const validUpdateStatuses: CourseStatus[] = [CourseStatus.published, CourseStatus.need_update];
+    if (!validUpdateStatuses.includes(course.status)) {
+      throw new BadRequestException('Khóa học đang ở trạng thái không thể gửi xét duyệt');
+    }
+
+    // Kiểm tra có thay đổi (draft hoặc outdated items)
+    const hasChanges = await this.hasUnpublishedChanges(courseId);
+    if (!hasChanges) {
+      throw new BadRequestException('Không có nội dung nào cần xét duyệt');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.course.update({
+        where: { id: courseId },
+        data: { status: CourseStatus.update },
+      }),
+      this.prisma.courseApproval.create({
+        data: { courseId, teacherId: userId, description },
+      }),
+    ]);
+
+    return { message: 'Gửi xét duyệt cập nhật khóa học thành công' };
   }
 
   // ── Admin Publish Course ──────────────────────────────────────────────────
@@ -771,14 +879,6 @@ export class CourseService {
   async publishCourse(adminId: string, courseId: string) {
     const course = await this.prisma.course.findFirst({
       where: { id: courseId, isDeleted: false },
-      include: {
-        lessons: {
-          where: { isDeleted: false },
-          include: {
-            materials: { where: { isDeleted: false } },
-          },
-        },
-      },
     });
     if (!course) throw new NotFoundException('Khóa học không tồn tại');
 
@@ -793,7 +893,7 @@ export class CourseService {
     const now = new Date();
 
     await this.prisma.$transaction(async (tx) => {
-      // Update course status
+      // Cập nhật trạng thái khóa học
       await tx.course.update({
         where: { id: courseId },
         data: {
@@ -803,42 +903,41 @@ export class CourseService {
         },
       });
 
-      // Publish all draft/pending lessons and materials
-      for (const lesson of course.lessons) {
-        if (lesson.status !== LessonStatus.published) {
-          await tx.lesson.update({
-            where: { id: lesson.id },
-            data: {
-              status: LessonStatus.published,
-              publisherId: adminId,
-              publishedAt: now,
-            },
-          });
-        }
-        for (const material of lesson.materials) {
-          if (material.status !== LessonStatus.published) {
-            await tx.lessonMaterial.update({
-              where: { id: material.id },
-              data: {
-                status: LessonStatus.published,
-                publisherId: adminId,
-                publishedAt: now,
-              },
-            });
-          }
-        }
-      }
+      // Lessons: draft → published
+      await tx.lesson.updateMany({
+        where: { courseId, status: LessonStatus.draft, isDeleted: false },
+        data: { status: LessonStatus.published, publisherId: adminId, publishedAt: now },
+      });
+
+      // Lessons: outdated → deleted
+      await tx.lesson.updateMany({
+        where: { courseId, status: LessonStatus.outdated, isDeleted: false },
+        data: { status: LessonStatus.deleted, isDeleted: true, deletedAt: now },
+      });
+
+      // Materials: draft → published
+      await tx.lessonMaterial.updateMany({
+        where: { lesson: { courseId }, status: LessonStatus.draft, isDeleted: false },
+        data: { status: LessonStatus.published, publisherId: adminId, publishedAt: now },
+      });
+
+      // Materials: outdated → deleted
+      await tx.lessonMaterial.updateMany({
+        where: { lesson: { courseId }, status: LessonStatus.outdated, isDeleted: false },
+        data: { status: LessonStatus.deleted, isDeleted: true, deletedAt: now },
+      });
+
+      // Cập nhật trạng thái phê duyệt
+      await tx.courseApproval.updateMany({
+        where: { courseId, status: 'pending' },
+        data: { status: 'approved', adminId },
+      });
 
       // Tạo hội thoại khi published lần đầu tiên
       if (isFirstPublish) {
         const conversation = await tx.conversation.create({
-          data: {
-            courseId,
-            name: course.name,
-          },
+          data: { courseId, name: course.name },
         });
-
-        // Add giảng viên vào hội thoại với isHost = true
         await tx.conversationMember.create({
           data: {
             conversationId: conversation.id,
@@ -850,6 +949,52 @@ export class CourseService {
     });
 
     return { message: 'Duyệt khóa học thành công' };
+  }
+
+  // ── Admin Reject Course ───────────────────────────────────────────────────
+
+  async rejectCourse(adminId: string, courseId: string, reason: string) {
+    const course = await this.prisma.course.findFirst({
+      where: { id: courseId, isDeleted: false },
+    });
+    if (!course) throw new NotFoundException('Khóa học không tồn tại');
+
+    if (
+      course.status !== CourseStatus.pending &&
+      course.status !== CourseStatus.update
+    ) {
+      throw new BadRequestException('Khóa học không ở trạng thái chờ duyệt');
+    }
+
+    // pending → rejected, update → need_update
+    const newStatus = course.status === CourseStatus.pending
+      ? CourseStatus.rejected
+      : CourseStatus.need_update;
+
+    await this.prisma.$transaction([
+      this.prisma.course.update({
+        where: { id: courseId },
+        data: { status: newStatus },
+      }),
+      this.prisma.courseApproval.updateMany({
+        where: { courseId, status: 'pending' },
+        data: { status: 'rejected', reason, adminId },
+      }),
+    ]);
+
+    return { message: 'Từ chối khóa học thành công' };
+  }
+
+  // ── Helper: kiểm tra có thay đổi chưa duyệt ─────────────────────────────
+
+  private async hasUnpublishedChanges(courseId: string): Promise<boolean> {
+    const [draftLessons, outdatedLessons, draftMaterials, outdatedMaterials] = await Promise.all([
+      this.prisma.lesson.count({ where: { courseId, status: LessonStatus.draft, isDeleted: false } }),
+      this.prisma.lesson.count({ where: { courseId, status: LessonStatus.outdated, isDeleted: false } }),
+      this.prisma.lessonMaterial.count({ where: { lesson: { courseId }, status: LessonStatus.draft, isDeleted: false } }),
+      this.prisma.lessonMaterial.count({ where: { lesson: { courseId }, status: LessonStatus.outdated, isDeleted: false } }),
+    ]);
+    return draftLessons + outdatedLessons + draftMaterials + outdatedMaterials > 0;
   }
 
   private buildPlaybackResponse(lessonMaterial: any, userId?: string) {
