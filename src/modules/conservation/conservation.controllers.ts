@@ -1,51 +1,48 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { ConservationService } from './conservation.service';
-import { PublicAPI } from '@/common/decorators/public-api.decorator';
-import { Roles } from '@/common/decorators/roles.decorator';
+import { SkipPermission } from '@/common/decorators/authenticated.decorator';
 import { User } from '@/common/decorators/user.decorator';
 import type { IUser } from '@/shared/types/user.type';
 
 @Controller('conversation')
 export class ConservationController {
-  constructor(private readonly conservationService: ConservationService) {}
+  constructor(private readonly conservationService: ConservationService) { }
 
   /**
-   * Lấy danh sách nhóm chat của giảng viên (dùng instructorId)
-   * GET /conversation/instructor/:instructorId
+   * Lấy danh sách hội thoại của user (qua ConversationMember)
+   * GET /conversation/my
    */
-  @PublicAPI()
-  @Get('instructor/:instructorId')
-  getInstructorConversations(@Param('instructorId') instructorId: string) {
-    return this.conservationService.getInstructorConversations(instructorId);
+  @SkipPermission()
+  @Get('my')
+  getMyConversations(@User() user: IUser) {
+    return this.conservationService.getMyConversations(user.id);
   }
 
   /**
-   * Lấy tất cả conversation mà người dùng đang tham gia
-   * GET /conversation/user/:userId
-   */
-  @PublicAPI()
-  @Get('user/:userId')
-  getConversationsByUserId(@Param('userId') userId: string) {
-    return this.conservationService.getInstructorConversations(userId);
-  }
-
-  /**
-   * Lấy conversation theo courseId
-   * GET /conversation/course/:courseId
-   */
-  @PublicAPI()
-  @Get('course/:courseId')
-  getConversationByCourseId(@Param('courseId') courseId: string) {
-    return this.conservationService.getConversationByCourseId(courseId);
-  }
-
-  /**
-   * Lấy chi tiết conversation kèm danh sách message
+   * Lấy chi tiết hội thoại + messages (phân trang)
    * GET /conversation/:conversationId
    */
-  @PublicAPI()
+  @SkipPermission()
   @Get(':conversationId')
-  getConversationDetails(@Param('conversationId') conversationId: string) {
-    return this.conservationService.getConversationDetails(conversationId);
+  getConversationDetail(
+    @User() user: IUser,
+    @Param('conversationId') conversationId: string,
+    @Query() query: Record<string, string>,
+  ) {
+    return this.conservationService.getConversationDetail(user.id, conversationId, query);
+  }
+
+  /**
+   * Gửi tin nhắn mới
+   * POST /conversation/:conversationId/messages
+   */
+  @SkipPermission()
+  @Post(':conversationId/messages')
+  sendMessage(
+    @User() user: IUser,
+    @Param('conversationId') conversationId: string,
+    @Body('content') content: string,
+  ) {
+    return this.conservationService.sendMessage(user.id, conversationId, content);
   }
 }
