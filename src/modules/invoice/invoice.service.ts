@@ -155,4 +155,108 @@ export class InvoiceService {
       },
     };
   }
+
+  // ── Hóa đơn của user ─────────────────────────────────────────────────────
+
+  async getMyInvoices(userId: string, query: Record<string, string>) {
+    const page = Math.max(1, parseInt(query.page) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(query.limit) || 10));
+    const { status, fromDate, toDate } = query;
+
+    const where: Prisma.InvoicesWhereInput = { userId, isDeleted: false };
+
+    if (status) where.status = status as any;
+    if (fromDate || toDate) {
+      where.createdAt = {};
+      if (fromDate) {
+        const from = new Date(fromDate);
+        if (!isNaN(from.getTime())) (where.createdAt as any).gte = from;
+      }
+      if (toDate) {
+        const to = new Date(toDate);
+        if (!isNaN(to.getTime())) {
+          to.setHours(23, 59, 59, 999);
+          (where.createdAt as any).lte = to;
+        }
+      }
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.invoices.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true,
+          amount: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          detail_invoices: {
+            select: {
+              id: true,
+              price: true,
+              commissionRate: true,
+              status: true,
+              courses: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                  thumbnail: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.invoices.count({ where }),
+    ]);
+
+    return {
+      message: 'Lấy danh sách hóa đơn thành công',
+      data,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async getMyInvoiceDetail(userId: string, invoiceId: string) {
+    const invoice = await this.prisma.invoices.findFirst({
+      where: { id: invoiceId, userId, isDeleted: false },
+      select: {
+        id: true,
+        amount: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        detail_invoices: {
+          select: {
+            id: true,
+            price: true,
+            commissionRate: true,
+            status: true,
+            createdAt: true,
+            courses: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                thumbnail: true,
+                user: {
+                  select: { id: true, fullName: true, avatar: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!invoice) {
+      throw new ForbiddenException('Không tìm thấy hóa đơn');
+    }
+
+    return { message: 'Lấy chi tiết hóa đơn thành công', data: invoice };
+  }
 }
