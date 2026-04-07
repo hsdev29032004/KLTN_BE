@@ -3722,6 +3722,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"class-transformer@npm:^0.5.1":
+  version: 0.5.1
+  resolution: "class-transformer@npm:0.5.1"
+  checksum: 10/750327e3e9a5cf233c5234252f4caf6b06c437bf68a24acbdcfb06c8e0bfff7aa97c30428184813e38e08111b42871f20c5cf669ea4490f8ae837c09f08b31e7
+  languageName: node
+  linkType: hard
+
 "class-validator@npm:^0.14.3":
   version: 0.14.4
   resolution: "class-validator@npm:0.14.4"
@@ -6229,6 +6236,7 @@ __metadata:
     "@types/pg": "npm:^8"
     "@types/supertest": "npm:^6.0.2"
     bcrypt: "npm:^6.0.0"
+    class-transformer: "npm:^0.5.1"
     class-validator: "npm:^0.14.3"
     cookie-parser: "npm:^1.4.7"
     dotenv: "npm:^17.2.3"

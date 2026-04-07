@@ -19,9 +19,10 @@ import { StatModule } from '../stat/stat.module';
 import { ConservationModule } from '../conservation/conservation.module';
 import { InvoiceModule } from '../invoice/invoice.module';
 import { PaymentModule } from '../payment/payment.module';
+import { ExamModule } from '../exam/exam.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule, CourseModule, ReviewModule, SystemModule, StatModule, ConservationModule, InvoiceModule, PaymentModule],
+  imports: [ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule, CourseModule, ReviewModule, SystemModule, StatModule, ConservationModule, InvoiceModule, PaymentModule, ExamModule],
   controllers: [AppController],
   providers: [
     AppService,

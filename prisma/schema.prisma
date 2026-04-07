@@ -38,6 +38,8 @@ model User {
   conversationMembers      ConversationMember[]
   teacherApprovals         CourseApproval[] @relation("teacherApprovals")
   adminApprovals           CourseApproval[] @relation("adminApprovals")
+  publishedExams           Exam[]           @relation("ExamPublishedBy")
+  examAttempts             ExamAttempt[]
   ban                      Ban?             @relation(fields: [banId], references: [id])
   role                     Role             @relation(fields: [roleId], references: [id])
 
@@ -119,6 +121,7 @@ model Course {
   lessons         Lesson[]
   userCourses     UserCourse[]
   approvals       CourseApproval[]
+  exams           Exam[]
 
   @@map("courses")
 }
@@ -366,6 +369,80 @@ model CourseApproval {
   admin       User?                @relation("adminApprovals", fields: [adminId], references: [id])
 
   @@map("course_approvals")
+}
+
+model Exam {
+  id              String       @id @default(uuid())
+  courseId         String
+  name            String
+  passPercent     Int          // % hoàn thiện để pass
+  retryAfterDays  Int          // số ngày có thể làm lại
+  questionCount   Int          // số câu hỏi lấy ngẫu nhiên mỗi lần thi
+  duration        Int          // thời gian làm bài (phút)
+  status          LessonStatus @default(draft)
+  publisherId     String?
+  isDeleted       Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  deletedAt       DateTime?
+  publishedAt     DateTime?
+  course          Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  publisher       User?        @relation("ExamPublishedBy", fields: [publisherId], references: [id])
+  questions       ExamQuestion[]
+  attempts        ExamAttempt[]
+
+  @@map("exams")
+}
+
+model ExamQuestion {
+  id            String   @id @default(uuid())
+  examId        String
+  content       String   // đề bài
+  optionA       String
+  optionB       String
+  optionC       String
+  optionD       String
+  correctAnswer String   // "A" | "B" | "C" | "D"
+  isDeleted     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  exam          Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  attemptAnswers ExamAttemptAnswer[]
+
+  @@map("exam_questions")
+}
+
+model ExamAttempt {
+  id          String              @id @default(uuid())
+  examId      String
+  userId      String
+  score       Decimal?            @db.Decimal(5, 2) // % điểm
+  isPassed    Boolean             @default(false)
+  isCompleted Boolean             @default(false) // đã nộp bài chưa
+  startedAt   DateTime            @default(now())
+  submittedAt DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  exam        Exam                @relation(fields: [examId], references: [id], onDelete: Cascade)
+  user        User                @relation(fields: [userId], references: [id])
+  answers     ExamAttemptAnswer[]
+
+  @@map("exam_attempts")
+}
+
+model ExamAttemptAnswer {
+  id            String       @id @default(uuid())
+  attemptId     String
+  questionId    String
+  selectedAnswer String?     // "A" | "B" | "C" | "D" hoặc null nếu chưa trả lời
+  isCorrect     Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  attempt       ExamAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question      ExamQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@map("exam_attempt_answers")
 }
 
 enum CourseApprovalStatus {

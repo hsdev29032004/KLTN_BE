@@ -388,6 +388,23 @@ export class CourseService {
           },
           orderBy: { createdAt: 'desc' },
         },
+        exams: {
+          where: isPrivileged
+            ? { isDeleted: false }
+            : { isDeleted: false, status: { in: [LessonStatus.published, LessonStatus.outdated] } },
+          select: {
+            id: true,
+            name: true,
+            passPercent: true,
+            retryAfterDays: true,
+            questionCount: true,
+            duration: true,
+            status: true,
+            createdAt: true,
+            _count: { select: { questions: { where: { isDeleted: false } } } },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
 
@@ -499,6 +516,26 @@ export class CourseService {
     const hasAccess = this.checkAccess(lessonMaterial, user);
     if (!hasAccess) {
       throw new ForbiddenException('Bạn chưa mua khóa học này');
+    }
+
+    // ── Kiểm tra đề thi chặn (exam gate) ─────────────────────────────────────
+    // Chỉ áp dụng cho user đã mua khóa học (không phải owner/admin)
+    if (user && !isPrivileged) {
+      const purchased = lessonMaterial.lesson?.course?.userCourses?.some(
+        (uc: any) => uc.userId === user.id,
+      );
+      if (purchased) {
+        const blocked = await this.isBlockedByExam(
+          lessonMaterial.lesson.courseId,
+          lessonMaterial.lesson.createdAt,
+          user.id,
+        );
+        if (blocked) {
+          throw new ForbiddenException(
+            'Bạn cần hoàn thành đề thi trước khi xem tài liệu này',
+          );
+        }
+      }
     }
 
     // ── Trả về response theo loại tài liệu ───────────────────────────────────
@@ -751,6 +788,14 @@ export class CourseService {
           deletedAt: new Date(),
         },
       }),
+      this.prisma.exam.updateMany({
+        where: { courseId, isDeleted: false },
+        data: {
+          status: LessonStatus.outdated,
+          isDeleted: true,
+          deletedAt: new Date(),
+        },
+      }),
     ]);
 
     return { message: 'Xóa khóa học thành công' };
@@ -927,6 +972,18 @@ export class CourseService {
         data: { status: LessonStatus.deleted, isDeleted: true, deletedAt: now },
       });
 
+      // Exams: draft → published
+      await tx.exam.updateMany({
+        where: { courseId, status: LessonStatus.draft, isDeleted: false },
+        data: { status: LessonStatus.published, publisherId: adminId, publishedAt: now },
+      });
+
+      // Exams: outdated → deleted
+      await tx.exam.updateMany({
+        where: { courseId, status: LessonStatus.outdated, isDeleted: false },
+        data: { status: LessonStatus.deleted, isDeleted: true, deletedAt: now },
+      });
+
       // Cập nhật trạng thái phê duyệt
       await tx.courseApproval.updateMany({
         where: { courseId, status: 'pending' },
@@ -988,13 +1045,46 @@ export class CourseService {
   // ── Helper: kiểm tra có thay đổi chưa duyệt ─────────────────────────────
 
   private async hasUnpublishedChanges(courseId: string): Promise<boolean> {
-    const [draftLessons, outdatedLessons, draftMaterials, outdatedMaterials] = await Promise.all([
+    const [draftLessons, outdatedLessons, draftMaterials, outdatedMaterials, draftExams, outdatedExams] = await Promise.all([
       this.prisma.lesson.count({ where: { courseId, status: LessonStatus.draft, isDeleted: false } }),
       this.prisma.lesson.count({ where: { courseId, status: LessonStatus.outdated, isDeleted: false } }),
       this.prisma.lessonMaterial.count({ where: { lesson: { courseId }, status: LessonStatus.draft, isDeleted: false } }),
       this.prisma.lessonMaterial.count({ where: { lesson: { courseId }, status: LessonStatus.outdated, isDeleted: false } }),
+      this.prisma.exam.count({ where: { courseId, status: LessonStatus.draft, isDeleted: false } }),
+      this.prisma.exam.count({ where: { courseId, status: LessonStatus.outdated, isDeleted: false } }),
     ]);
-    return draftLessons + outdatedLessons + draftMaterials + outdatedMaterials > 0;
+    return draftLessons + outdatedLessons + draftMaterials + outdatedMaterials + draftExams + outdatedExams > 0;
+  }
+
+  // ── Helper: kiểm tra học viên bị chặn bởi đề thi ──────────────────────────
+  // Nếu có đề thi nào được tạo TRƯỚC lesson này mà học viên chưa pass → chặn
+  async isBlockedByExam(
+    courseId: string,
+    lessonCreatedAt: Date,
+    userId: string,
+  ): Promise<boolean> {
+    // Tìm tất cả exam published thuộc khóa học, có createdAt < lesson.createdAt
+    const examsBefore = await this.prisma.exam.findMany({
+      where: {
+        courseId,
+        isDeleted: false,
+        status: { in: [LessonStatus.published] },
+        createdAt: { lt: lessonCreatedAt },
+      },
+      select: { id: true },
+    });
+
+    if (examsBefore.length === 0) return false;
+
+    // Kiểm tra mỗi exam xem user đã pass chưa
+    for (const exam of examsBefore) {
+      const passed = await this.prisma.examAttempt.findFirst({
+        where: { examId: exam.id, userId, isPassed: true },
+      });
+      if (!passed) return true; // Có exam chưa pass → chặn
+    }
+
+    return false;
   }
 
   private buildPlaybackResponse(lessonMaterial: any, userId?: string) {
