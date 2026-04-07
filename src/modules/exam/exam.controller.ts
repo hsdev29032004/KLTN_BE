@@ -44,10 +44,10 @@ export class ExamController {
     return this.examService.deleteExam(user.id, examId);
   }
 
-  @Roles('teacher')
+  @Roles('teacher', 'admin')
   @Get(':examId/detail')
   getExamDetail(@User() user: IUser, @Param('examId') examId: string) {
-    return this.examService.getExamDetail(user.id, examId);
+    return this.examService.getExamDetail(user, examId);
   }
 
   // ── Questions ─────────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ export class ExamController {
     @Param('examId') examId: string,
     @Body() dto: CreateExamQuestionDto,
   ) {
-    return this.examService.createQuestion(user.id, examId, dto);
+    return this.examService.createQuestion(user, examId, dto);
   }
 
   @Roles('teacher')
@@ -69,7 +69,7 @@ export class ExamController {
     @Param('examId') examId: string,
     @Body() dtos: CreateExamQuestionDto[],
   ) {
-    return this.examService.createManyQuestions(user.id, examId, dtos);
+    return this.examService.createManyQuestions(user, examId, dtos);
   }
 
   @Roles('teacher')

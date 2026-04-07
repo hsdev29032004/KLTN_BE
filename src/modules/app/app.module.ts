@@ -13,7 +13,7 @@ import { ReviewModule } from '../review/review.module';
 import { SystemModule } from '../system/system.module';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { PermissionGuard } from '@/common/guards/permission.guard';
-import { PrismaService } from '@/infras/prisma/prisma.service';
+import { PrismaModule } from '@/infras/prisma/prisma.module';
 import { AuthMiddleware } from '@/core/middlewares/auth.middleware';
 import { StatModule } from '../stat/stat.module';
 import { ConservationModule } from '../conservation/conservation.module';
@@ -22,13 +22,12 @@ import { PaymentModule } from '../payment/payment.module';
 import { ExamModule } from '../exam/exam.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule, CourseModule, ReviewModule, SystemModule, StatModule, ConservationModule, InvoiceModule, PaymentModule, ExamModule],
+  imports: [PrismaModule, ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule, CourseModule, ReviewModule, SystemModule, StatModule, ConservationModule, InvoiceModule, PaymentModule, ExamModule],
   controllers: [AppController],
   providers: [
     AppService,
     LockAmountCronService,
     AppLogger,
-    PrismaService,
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,

@@ -11,6 +11,8 @@ import { UpdateExamDto } from './dto/update-exam.dto';
 import { CreateExamQuestionDto } from './dto/create-exam-question.dto';
 import { UpdateExamQuestionDto } from './dto/update-exam-question.dto';
 import { SubmitExamDto } from './dto/submit-exam.dto';
+import { IUser } from '@/shared/types/user.type';
+import { ROLE_NAME } from '@/shared/constants/auth.constant';
 
 @Injectable()
 export class ExamService {
@@ -88,7 +90,7 @@ export class ExamService {
 
   // ── Teacher: Lấy chi tiết đề thi (bao gồm câu hỏi) ─────────────────────
 
-  async getExamDetail(userId: string, examId: string) {
+  async getExamDetail(user: IUser, examId: string) {
     const exam = await this.prisma.exam.findFirst({
       where: { id: examId, isDeleted: false },
       include: {
@@ -101,7 +103,7 @@ export class ExamService {
       },
     });
     if (!exam) throw new NotFoundException('Đề thi không tồn tại');
-    if (exam.course.userId !== userId)
+    if (exam.course.userId !== user.id && user.role?.name !== ROLE_NAME.ADMIN)
       throw new ForbiddenException('Bạn không có quyền xem đề thi này');
 
     return { message: 'Lấy chi tiết đề thi thành công', data: exam };
@@ -109,13 +111,13 @@ export class ExamService {
 
   // ── Teacher: Thêm câu hỏi ────────────────────────────────────────────────
 
-  async createQuestion(userId: string, examId: string, dto: CreateExamQuestionDto) {
+  async createQuestion(user: IUser, examId: string, dto: CreateExamQuestionDto) {
     const exam = await this.prisma.exam.findFirst({
       where: { id: examId, isDeleted: false },
       include: { course: { select: { userId: true } } },
     });
     if (!exam) throw new NotFoundException('Đề thi không tồn tại');
-    if (exam.course.userId !== userId)
+    if (exam.course.userId !== user.id)
       throw new ForbiddenException('Bạn không có quyền thao tác đề thi này');
 
     const question = await this.prisma.examQuestion.create({
@@ -135,13 +137,13 @@ export class ExamService {
 
   // ── Teacher: Thêm nhiều câu hỏi cùng lúc ────────────────────────────────
 
-  async createManyQuestions(userId: string, examId: string, dtos: CreateExamQuestionDto[]) {
+  async createManyQuestions(user: IUser, examId: string, dtos: CreateExamQuestionDto[]) {
     const exam = await this.prisma.exam.findFirst({
       where: { id: examId, isDeleted: false },
       include: { course: { select: { userId: true } } },
     });
     if (!exam) throw new NotFoundException('Đề thi không tồn tại');
-    if (exam.course.userId !== userId)
+    if (exam.course.userId !== user.id && user.role?.name !== ROLE_NAME.ADMIN)
       throw new ForbiddenException('Bạn không có quyền thao tác đề thi này');
 
     const questions = await this.prisma.examQuestion.createMany({
@@ -197,6 +199,33 @@ export class ExamService {
     return { message: 'Xóa câu hỏi thành công' };
   }
 
+  // ── Helper: kiểm tra điều kiện tiên quyết (đề thi trước phải pass) ────────
+  // Trả về exam bị chặn đầu tiên, hoặc null nếu không bị chặn
+  private async getBlockingPrerequisiteExam(
+    courseId: string,
+    examCreatedAt: Date,
+    userId: string,
+  ): Promise<{ id: string; name: string } | null> {
+    const examsBefore = await this.prisma.exam.findMany({
+      where: {
+        courseId,
+        isDeleted: false,
+        status: { in: [LessonStatus.published] },
+        createdAt: { lt: examCreatedAt },
+      },
+      select: { id: true, name: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    for (const e of examsBefore) {
+      const passed = await this.prisma.examAttempt.findFirst({
+        where: { examId: e.id, userId, isPassed: true },
+      });
+      if (!passed) return { id: e.id, name: e.name };
+    }
+    return null;
+  }
+
   // ── Student: Lấy thông tin đề thi (không bao gồm đáp án đúng) ────────────
 
   async getExamInfo(userId: string, examId: string) {
@@ -217,6 +246,32 @@ export class ExamService {
 
     if (exam.course.userCourses.length === 0) {
       throw new ForbiddenException('Bạn chưa mua khóa học này');
+    }
+
+    // Kiểm tra đề thi tiên quyết
+    const blockingExam = await this.getBlockingPrerequisiteExam(
+      exam.courseId,
+      exam.createdAt,
+      userId,
+    );
+    if (blockingExam) {
+      return {
+        message: 'Lấy thông tin đề thi thành công',
+        data: {
+          id: exam.id,
+          name: exam.name,
+          passPercent: exam.passPercent,
+          duration: exam.duration,
+          questionCount: exam.questionCount,
+          totalQuestions: exam._count.questions,
+          courseName: exam.course.name,
+          hasPassed: false,
+          canTakeExam: false,
+          blockedByExam: blockingExam,
+          retryAvailableAt: null,
+          inProgressAttemptId: null,
+        },
+      };
     }
 
     // Lấy lần thi gần nhất
@@ -244,6 +299,7 @@ export class ExamService {
             courseName: exam.course.name,
             hasPassed: false,
             canTakeExam: true,
+            blockedByExam: null,
             retryAvailableAt: null,
             inProgressAttemptId: lastAttempt.id,
           },
@@ -263,6 +319,7 @@ export class ExamService {
             courseName: exam.course.name,
             hasPassed: true,
             canTakeExam: false,
+            blockedByExam: null,
             retryAvailableAt: null,
             inProgressAttemptId: null,
           },
@@ -291,6 +348,7 @@ export class ExamService {
         courseName: exam.course.name,
         hasPassed: false,
         canTakeExam,
+        blockedByExam: null,
         retryAvailableAt,
         inProgressAttemptId: null,
       },
@@ -315,6 +373,18 @@ export class ExamService {
 
     if (exam.course.userCourses.length === 0) {
       throw new ForbiddenException('Bạn chưa mua khóa học này');
+    }
+
+    // Kiểm tra đề thi tiên quyết (phải pass đề trước mới làm đề sau)
+    const blockingExam = await this.getBlockingPrerequisiteExam(
+      exam.courseId,
+      exam.createdAt,
+      userId,
+    );
+    if (blockingExam) {
+      throw new ForbiddenException(
+        `Bạn cần hoàn thành các đề thi trước`,
+      );
     }
 
     // Kiểm tra có bài thi chưa hoàn thành
