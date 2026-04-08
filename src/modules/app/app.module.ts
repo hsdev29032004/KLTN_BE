@@ -20,9 +20,10 @@ import { ConservationModule } from '../conservation/conservation.module';
 import { InvoiceModule } from '../invoice/invoice.module';
 import { PaymentModule } from '../payment/payment.module';
 import { ExamModule } from '../exam/exam.module';
+import { UserModule } from '../user/user.module';
 
 @Module({
-  imports: [PrismaModule, ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule, CourseModule, ReviewModule, SystemModule, StatModule, ConservationModule, InvoiceModule, PaymentModule, ExamModule],
+  imports: [PrismaModule, ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule, CourseModule, ReviewModule, SystemModule, StatModule, ConservationModule, InvoiceModule, PaymentModule, ExamModule, UserModule],
   controllers: [AppController],
   providers: [
     AppService,
