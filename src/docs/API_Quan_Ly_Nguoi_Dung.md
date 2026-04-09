@@ -31,19 +31,19 @@ GET /api/user/admin/all
 
 ### Query Parameters
 
-| Param      | Type   | Mặc định    | Mô tả                                                    |
-| ---------- | ------ | ----------- | --------------------------------------------------------- |
-| `search`   | string | —           | Tìm theo tên hoặc email (không phân biệt hoa/thường)     |
-| `roleId`   | string | —           | Lọc theo ID role                                          |
-| `roleName` | string | —           | Lọc theo tên role (`Admin`, `Teacher`, `User`)            |
-| `isBanned` | string | —           | `"true"` = đang bị cấm, `"false"` = không bị cấm        |
-| `isDeleted`| string | —           | `"true"` = đã xóa, `"false"` = chưa xóa                 |
-| `fromDate` | string | —           | Ngày bắt đầu tạo (ISO 8601), vd: `2026-01-01`            |
-| `toDate`   | string | —           | Ngày kết thúc tạo (ISO 8601), vd: `2026-12-31`           |
-| `page`     | string | `"1"`       | Trang hiện tại                                            |
-| `limit`    | string | `"20"`      | Số bản ghi mỗi trang (tối đa 100)                        |
-| `sortBy`   | string | `createdAt` | Sắp xếp: `createdAt`, `fullName`, `email`, `availableAmount` |
-| `order`    | string | `desc`      | `asc` hoặc `desc`                                        |
+| Param       | Type   | Mặc định    | Mô tả                                                        |
+| ----------- | ------ | ----------- | ------------------------------------------------------------ |
+| `search`    | string | —           | Tìm theo tên hoặc email (không phân biệt hoa/thường)         |
+| `roleId`    | string | —           | Lọc theo ID role                                             |
+| `roleName`  | string | —           | Lọc theo tên role (`Admin`, `Teacher`, `User`)               |
+| `isBanned`  | string | —           | `"true"` = đang bị cấm, `"false"` = không bị cấm             |
+| `isDeleted` | string | —           | `"true"` = đã xóa, `"false"` = chưa xóa                      |
+| `fromDate`  | string | —           | Ngày bắt đầu tạo (ISO 8601), vd: `2026-01-01`                |
+| `toDate`    | string | —           | Ngày kết thúc tạo (ISO 8601), vd: `2026-12-31`               |
+| `page`      | string | `"1"`       | Trang hiện tại                                               |
+| `limit`     | string | `"20"`      | Số bản ghi mỗi trang (tối đa 100)                            |
+| `sortBy`    | string | `createdAt` | Sắp xếp: `createdAt`, `fullName`, `email`, `availableAmount` |
+| `order`     | string | `desc`      | `asc` hoặc `desc`                                            |
 
 ### Response `200 OK`
 
@@ -103,15 +103,15 @@ GET /api/user/students
 
 ### Query Parameters
 
-| Param    | Type   | Mặc định    | Mô tả                                                 |
-| -------- | ------ | ----------- | ------------------------------------------------------ |
-| `search` | string | —           | Tìm theo tên hoặc email học viên                       |
-| `fromDate`| string | —          | Ngày bắt đầu mua khóa học (ISO 8601)                   |
-| `toDate` | string | —           | Ngày kết thúc mua khóa học (ISO 8601)                  |
-| `page`   | string | `"1"`       | Trang hiện tại                                         |
-| `limit`  | string | `"20"`      | Số bản ghi mỗi trang (tối đa 100)                     |
-| `sortBy` | string | `createdAt` | Trường sắp xếp: `createdAt`                           |
-| `order`  | string | `desc`      | `asc` hoặc `desc`                                     |
+| Param      | Type   | Mặc định    | Mô tả                                 |
+| ---------- | ------ | ----------- | ------------------------------------- |
+| `search`   | string | —           | Tìm theo tên hoặc email học viên      |
+| `fromDate` | string | —           | Ngày bắt đầu mua khóa học (ISO 8601)  |
+| `toDate`   | string | —           | Ngày kết thúc mua khóa học (ISO 8601) |
+| `page`     | string | `"1"`       | Trang hiện tại                        |
+| `limit`    | string | `"20"`      | Số bản ghi mỗi trang (tối đa 100)     |
+| `sortBy`   | string | `createdAt` | Trường sắp xếp: `createdAt`           |
+| `order`    | string | `desc`      | `asc` hoặc `desc`                     |
 
 ### Response `200 OK`
 
@@ -165,7 +165,7 @@ GET /api/user/profile/:slug
 
 ### Path Parameters
 
-| Param  | Type   | Mô tả              |
+| Param  | Type   | Mô tả               |
 | ------ | ------ | ------------------- |
 | `slug` | string | Slug của người dùng |
 
@@ -219,9 +219,9 @@ PATCH /api/user/profile
 ### Request Body
 
 | Field       | Type   | Bắt buộc | Mô tả                       |
-| ----------- | ------ | -------- | ---------------------------- |
+| ----------- | ------ | -------- | --------------------------- |
 | `fullName`  | string | Không    | Họ tên (2–100 ký tự)        |
-| `avatar`    | string | Không    | URL ảnh đại diện             |
+| `avatar`    | string | Không    | URL ảnh đại diện            |
 | `introduce` | string | Không    | Giới thiệu bản thân (≤1000) |
 
 ### Request Body Example
@@ -271,9 +271,9 @@ POST /api/user/change-password
 
 ### Request Body
 
-| Field             | Type   | Bắt buộc | Mô tả                         |
-| ----------------- | ------ | -------- | ------------------------------ |
-| `currentPassword` | string | Có       | Mật khẩu hiện tại             |
+| Field             | Type   | Bắt buộc | Mô tả                            |
+| ----------------- | ------ | -------- | -------------------------------- |
+| `currentPassword` | string | Có       | Mật khẩu hiện tại                |
 | `newPassword`     | string | Có       | Mật khẩu mới (tối thiểu 6 ký tự) |
 
 ### Request Body Example
@@ -309,9 +309,9 @@ GET /api/user/admin/:id
 
 ### Path Parameters
 
-| Param | Type   | Mô tả       |
-| ----- | ------ | ------------ |
-| `id`  | string | UUID user    |
+| Param | Type   | Mô tả     |
+| ----- | ------ | --------- |
+| `id`  | string | UUID user |
 
 ### Response `200 OK`
 
@@ -358,18 +358,18 @@ PATCH /api/user/admin/:id
 
 ### Path Parameters
 
-| Param | Type   | Mô tả    |
-| ----- | ------ | -------- |
+| Param | Type   | Mô tả     |
+| ----- | ------ | --------- |
 | `id`  | string | UUID user |
 
 ### Request Body
 
 | Field       | Type   | Bắt buộc | Mô tả                       |
-| ----------- | ------ | -------- | ---------------------------- |
+| ----------- | ------ | -------- | --------------------------- |
 | `fullName`  | string | Không    | Họ tên (2–100 ký tự)        |
-| `avatar`    | string | Không    | URL ảnh đại diện             |
+| `avatar`    | string | Không    | URL ảnh đại diện            |
 | `introduce` | string | Không    | Giới thiệu bản thân (≤1000) |
-| `roleId`    | string | Không    | ID role mới (UUID)           |
+| `roleId`    | string | Không    | ID role mới (UUID)          |
 
 ### Request Body Example
 
@@ -407,15 +407,15 @@ POST /api/user/admin/:id/ban
 
 ### Path Parameters
 
-| Param | Type   | Mô tả    |
-| ----- | ------ | -------- |
+| Param | Type   | Mô tả             |
+| ----- | ------ | ----------------- |
 | `id`  | string | UUID user cần cấm |
 
 ### Request Body
 
-| Field       | Type   | Bắt buộc | Mô tả                                         |
-| ----------- | ------ | -------- | ---------------------------------------------- |
-| `reason`    | string | Có       | Lý do cấm                                     |
+| Field       | Type   | Bắt buộc | Mô tả                                                      |
+| ----------- | ------ | -------- | ---------------------------------------------------------- |
+| `reason`    | string | Có       | Lý do cấm                                                  |
 | `timeUnBan` | string | Không    | Thời gian hết cấm (ISO 8601). Không truyền = cấm vĩnh viễn |
 
 ### Request Body Example
@@ -447,11 +447,11 @@ POST /api/user/admin/:id/ban
 
 ### Error Responses
 
-| Status | Message                        |
-| ------ | ------------------------------ |
-| 400    | Không thể cấm chính mình      |
-| 400    | timeUnBan không hợp lệ         |
-| 404    | Người dùng không tồn tại      |
+| Status | Message                  |
+| ------ | ------------------------ |
+| 400    | Không thể cấm chính mình |
+| 400    | timeUnBan không hợp lệ   |
+| 404    | Người dùng không tồn tại |
 
 ---
 
@@ -465,8 +465,8 @@ POST /api/user/admin/:id/unban
 
 ### Path Parameters
 
-| Param | Type   | Mô tả              |
-| ----- | ------ | ------------------- |
+| Param | Type   | Mô tả                |
+| ----- | ------ | -------------------- |
 | `id`  | string | UUID user cần bỏ cấm |
 
 ### Response `200 OK`
@@ -487,10 +487,10 @@ POST /api/user/admin/:id/unban
 
 ### Error Responses
 
-| Status | Message                        |
-| ------ | ------------------------------ |
-| 400    | Người dùng không bị cấm       |
-| 404    | Người dùng không tồn tại      |
+| Status | Message                  |
+| ------ | ------------------------ |
+| 400    | Người dùng không bị cấm  |
+| 404    | Người dùng không tồn tại |
 
 ---
 
@@ -504,8 +504,8 @@ DELETE /api/user/admin/:id
 
 ### Path Parameters
 
-| Param | Type   | Mô tả          |
-| ----- | ------ | --------------- |
+| Param | Type   | Mô tả             |
+| ----- | ------ | ----------------- |
 | `id`  | string | UUID user cần xóa |
 
 ### Response `200 OK`
@@ -523,10 +523,10 @@ DELETE /api/user/admin/:id
 
 ### Error Responses
 
-| Status | Message                        |
-| ------ | ------------------------------ |
-| 400    | Không thể xóa chính mình      |
-| 404    | Người dùng không tồn tại      |
+| Status | Message                  |
+| ------ | ------------------------ |
+| 400    | Không thể xóa chính mình |
+| 404    | Người dùng không tồn tại |
 
 ---
 
@@ -540,8 +540,8 @@ POST /api/user/admin/:id/restore
 
 ### Path Parameters
 
-| Param | Type   | Mô tả               |
-| ----- | ------ | -------------------- |
+| Param | Type   | Mô tả                   |
+| ----- | ------ | ----------------------- |
 | `id`  | string | UUID user cần khôi phục |
 
 ### Response `200 OK`
@@ -561,19 +561,19 @@ POST /api/user/admin/:id/restore
 
 ## Tổng kết quyền truy cập
 
-| API                              | Method   | Route                        | Admin | Teacher | User | Public |
-| -------------------------------- | -------- | ---------------------------- | ----- | ------- | ---- | ------ |
-| Danh sách tất cả người dùng     | `GET`    | `/user/admin/all`            | ✅    | ❌      | ❌   | ❌     |
-| Danh sách học viên               | `GET`    | `/user/students`             | ✅    | ✅      | ❌   | ❌     |
-| Xem profile public               | `GET`    | `/user/profile/:slug`        | ✅    | ✅      | ✅   | ✅     |
-| Cập nhật profile cá nhân         | `PATCH`  | `/user/profile`              | ✅    | ✅      | ✅   | ❌     |
-| Đổi mật khẩu                     | `POST`   | `/user/change-password`      | ✅    | ✅      | ✅   | ❌     |
-| Xem chi tiết user                | `GET`    | `/user/admin/:id`            | ✅    | ❌      | ❌   | ❌     |
-| Admin cập nhật user              | `PATCH`  | `/user/admin/:id`            | ✅    | ❌      | ❌   | ❌     |
-| Cấm người dùng                   | `POST`   | `/user/admin/:id/ban`        | ✅    | ❌      | ❌   | ❌     |
-| Bỏ cấm người dùng               | `POST`   | `/user/admin/:id/unban`      | ✅    | ❌      | ❌   | ❌     |
-| Xóa mềm người dùng              | `DELETE` | `/user/admin/:id`            | ✅    | ❌      | ❌   | ❌     |
-| Khôi phục người dùng             | `POST`   | `/user/admin/:id/restore`    | ✅    | ❌      | ❌   | ❌     |
+| API                         | Method   | Route                     | Admin | Teacher | User | Public |
+| --------------------------- | -------- | ------------------------- | ----- | ------- | ---- | ------ |
+| Danh sách tất cả người dùng | `GET`    | `/user/admin/all`         | ✅    | ❌      | ❌   | ❌     |
+| Danh sách học viên          | `GET`    | `/user/students`          | ✅    | ✅      | ❌   | ❌     |
+| Xem profile public          | `GET`    | `/user/profile/:slug`     | ✅    | ✅      | ✅   | ✅     |
+| Cập nhật profile cá nhân    | `PATCH`  | `/user/profile`           | ✅    | ✅      | ✅   | ❌     |
+| Đổi mật khẩu                | `POST`   | `/user/change-password`   | ✅    | ✅      | ✅   | ❌     |
+| Xem chi tiết user           | `GET`    | `/user/admin/:id`         | ✅    | ❌      | ❌   | ❌     |
+| Admin cập nhật user         | `PATCH`  | `/user/admin/:id`         | ✅    | ❌      | ❌   | ❌     |
+| Cấm người dùng              | `POST`   | `/user/admin/:id/ban`     | ✅    | ❌      | ❌   | ❌     |
+| Bỏ cấm người dùng           | `POST`   | `/user/admin/:id/unban`   | ✅    | ❌      | ❌   | ❌     |
+| Xóa mềm người dùng          | `DELETE` | `/user/admin/:id`         | ✅    | ❌      | ❌   | ❌     |
+| Khôi phục người dùng        | `POST`   | `/user/admin/:id/restore` | ✅    | ❌      | ❌   | ❌     |
 
 ---
 

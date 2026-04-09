@@ -23,7 +23,22 @@ import { ExamModule } from '../exam/exam.module';
 import { UserModule } from '../user/user.module';
 
 @Module({
-  imports: [PrismaModule, ScheduleModule.forRoot(), AuthModule, RoleModule, PermissionModule, CourseModule, ReviewModule, SystemModule, StatModule, ConservationModule, InvoiceModule, PaymentModule, ExamModule, UserModule],
+  imports: [
+    PrismaModule,
+    ScheduleModule.forRoot(),
+    AuthModule,
+    RoleModule,
+    PermissionModule,
+    CourseModule,
+    ReviewModule,
+    SystemModule,
+    StatModule,
+    ConservationModule,
+    InvoiceModule,
+    PaymentModule,
+    ExamModule,
+    UserModule,
+  ],
   controllers: [AppController],
   providers: [
     AppService,
@@ -41,9 +56,6 @@ import { UserModule } from '../user/user.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(AuthMiddleware)
-      .exclude('auth/refresh-token')
-      .forRoutes('*');
+    consumer.apply(AuthMiddleware).exclude('auth/refresh-token').forRoutes('*');
   }
 }
