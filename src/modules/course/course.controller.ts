@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, Post, Body, Put, Delete } from '@nestjs/common';
+import { Controller, Get, Param, Query, Post, Body, Put, Delete, Req } from '@nestjs/common';
 import { CourseService } from './course.service';
 import { PublicAPI } from '@/common/decorators/public-api.decorator';
 import { User } from '@/common/decorators/user.decorator';
@@ -96,8 +96,12 @@ export class CourseController {
 
   @Roles('user')
   @Post('purchased')
-  purchase(@User() user: IUser, @Body() ids: string[]) {
-    return this.courseService.purchaseCourses(user.id, ids);
+  purchase(@User() user: IUser, @Body() ids: string[], @Req() req: any) {
+    const ip =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      req.socket.remoteAddress ||
+      '127.0.0.1';
+    return this.courseService.purchaseCourses(user.id, ids, ip);
   }
 
   @Roles('teacher')

@@ -17,6 +17,7 @@ import { CreateLessonMaterialDto } from './dto/create-lesson-material.dto';
 import { UpdateLessonMaterialDto } from './dto/update-lesson-material.dto';
 import type { MaterialType } from '@prisma/client';
 import { CourseStatus, LessonStatus } from '@prisma/client';
+import { VNPay, ignoreLogger, VnpLocale, HashAlgorithm, dateFormat } from 'vnpay';
 
 const COURSE_LIST_SELECT = {
   id: true,
@@ -124,7 +125,7 @@ export class CourseService {
     };
   }
 
-  async purchaseCourses(userId: string, courseIds: string[]) {
+  async purchaseCourses(userId: string, courseIds: string[], ipAddr: string) {
     if (!Array.isArray(courseIds) || courseIds.length === 0) {
       throw new BadRequestException('Danh sách khóa học rỗng');
     }
@@ -154,32 +155,24 @@ export class CourseService {
       0,
     );
 
-    const [user, system] = await Promise.all([
-      this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, availableAmount: true },
-      }),
-      this.prisma.system.findUnique({
-        where: { id: 'system' },
-        select: { comissionRate: true },
-      }),
-    ]);
+    const system = await this.prisma.system.findUnique({
+      where: { id: 'system' },
+      select: { comissionRate: true },
+    });
 
-    if (!user) throw new NotFoundException('Người dùng không tồn tại');
     if (!system) throw new NotFoundException('Hệ thống chưa được cấu hình');
 
-    if ((user.availableAmount ?? 0) < total) {
-      throw new BadRequestException('Không đủ số dư');
-    }
-
-    const commissionRate = Number(system.comissionRate);
-
-    const result = await this.prisma.$transaction(async (tx) => {
+    // Tạo hóa đơn pending + chi tiết hóa đơn
+    const invoice = await this.prisma.$transaction(async (tx) => {
       const purchase = await tx.invoices.create({
-        data: { userId, amount: total },
+        data: {
+          userId,
+          amount: total,
+          status: 'pending',
+        },
       });
 
-      const details = await Promise.all(
+      await Promise.all(
         courses.map((c) =>
           tx.detailInvoices.create({
             data: {
@@ -187,22 +180,115 @@ export class CourseService {
               courseId: c.id,
               price: c.price,
               commissionRate: system.comissionRate,
-              status: 'paid',
+              status: 'pending',
             },
           }),
         ),
       );
 
-      const userCourses = await Promise.all(
-        courses.map((c) =>
-          tx.userCourse.create({ data: { userId, courseId: c.id } }),
+      return purchase;
+    });
+
+    // Tạo link VNPay
+    const vnpay = new VNPay({
+      tmnCode: process.env.VNPAY_TMN_CODE || '',
+      secureSecret: process.env.VNPAY_SECRET_KEY || '',
+      vnpayHost: 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
+      testMode: true,
+      hashAlgorithm: HashAlgorithm.SHA512,
+      loggerFn: ignoreLogger,
+    });
+
+    const txnRef = `${invoice.id}_${Date.now()}`;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Normalize IP
+    const normalizedIp = ipAddr === '::1' || ipAddr === '::ffff:127.0.0.1' || !ipAddr
+      ? '127.0.0.1'
+      : ipAddr.replace(/^::ffff:/, '');
+
+    const paymentUrl = vnpay.buildPaymentUrl({
+      vnp_Amount: total,
+      vnp_IpAddr: normalizedIp,
+      vnp_TxnRef: txnRef,
+      vnp_OrderInfo: `${invoice.id}|purchase`,
+      vnp_ReturnUrl: `${process.env.BE_DOMAIN || 'http://localhost:3001'}/api/payment/vnpay-return`,
+      vnp_Locale: VnpLocale.VN,
+      vnp_CreateDate: dateFormat(new Date()),
+      vnp_ExpireDate: dateFormat(tomorrow),
+    });
+
+    // Lưu txnRef vào invoice
+    await this.prisma.invoices.update({
+      where: { id: invoice.id },
+      data: { vnpayTxnRef: txnRef },
+    });
+
+    return {
+      message: 'Tạo đơn hàng thành công',
+      data: {
+        invoiceId: invoice.id,
+        amount: total,
+        paymentUrl,
+      },
+    };
+  }
+
+  // ── Xử lý callback VNPay khi thanh toán thành công ────────────────────────
+
+  async handlePaymentSuccess(invoiceId: string) {
+    const invoice = await this.prisma.invoices.findFirst({
+      where: { id: invoiceId, status: 'pending' },
+      include: {
+        detail_invoices: {
+          select: { courseId: true },
+        },
+      },
+    });
+
+    if (!invoice) return; // Đã xử lý rồi hoặc không tìm thấy
+
+    const userId = invoice.userId;
+    const courseIds = invoice.detail_invoices.map((d) => d.courseId);
+
+    await this.prisma.$transaction(async (tx) => {
+      // Cập nhật invoice → purchased
+      await tx.invoices.update({
+        where: { id: invoiceId },
+        data: { status: 'purchased' },
+      });
+
+      // Cập nhật detail invoices → paid
+      await tx.detailInvoices.updateMany({
+        where: { coursePurchaseId: invoiceId },
+        data: { status: 'paid' },
+      });
+
+      // Tạo UserCourse
+      for (const courseId of courseIds) {
+        const exists = await tx.userCourse.findFirst({
+          where: { userId, courseId },
+        });
+        if (!exists) {
+          await tx.userCourse.create({ data: { userId, courseId } });
+        }
+      }
+
+      // Cập nhật studentCount
+      await Promise.all(
+        courseIds.map((courseId) =>
+          tx.course.update({
+            where: { id: courseId },
+            data: { studentCount: { increment: 1 } },
+          }),
         ),
       );
 
-      // Add buyer to existing conversations
-      for (const c of courses) {
+      // Add buyer to conversations
+      for (const courseId of courseIds) {
         const conv = await tx.conversation.findUnique({
-          where: { courseId: c.id },
+          where: { courseId },
         });
         if (conv) {
           const existingMember = await tx.conversationMember.findUnique({
@@ -218,26 +304,22 @@ export class CourseService {
         }
       }
 
-      await tx.user.update({
-        where: { id: userId },
-        data: { availableAmount: { decrement: total } },
+      // Xóa các khóa học đã mua khỏi giỏ hàng
+      await tx.cartItem.deleteMany({
+        where: { userId, courseId: { in: courseIds } },
       });
-
-      // Credit each course owner based on commission rate
-      for (const c of courses) {
-        const ownerEarning = Math.floor(
-          (Number(c.price) * commissionRate) / 100,
-        );
-        await tx.user.update({
-          where: { id: c.userId },
-          data: { availableAmount: { increment: ownerEarning } },
-        });
-      }
-
-      return { purchase, details, userCourses };
     });
+  }
 
-    return { message: 'Mua khóa học thành công', data: result };
+  async handlePaymentFailed(invoiceId: string) {
+    await this.prisma.invoices.updateMany({
+      where: { id: invoiceId, status: 'pending' },
+      data: { status: 'failed' },
+    });
+    await this.prisma.detailInvoices.updateMany({
+      where: { coursePurchaseId: invoiceId },
+      data: { status: 'failed' },
+    });
   }
 
   async findByIds(ids: string[]) {
