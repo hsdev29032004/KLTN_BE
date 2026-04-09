@@ -22,6 +22,7 @@ import { PaymentModule } from '../payment/payment.module';
 import { ExamModule } from '../exam/exam.module';
 import { UserModule } from '../user/user.module';
 import { CartModule } from '../cart/cart.module';
+import { TopicModule } from '../topic/topic.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { CartModule } from '../cart/cart.module';
     ExamModule,
     UserModule,
     CartModule,
+    TopicModule,
   ],
   controllers: [AppController],
   providers: [

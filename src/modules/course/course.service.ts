@@ -11,6 +11,7 @@ import { ROLE_NAME } from '@/shared/constants/auth.constant';
 import { generateSlug } from '@/shared/utils/slug.util';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
+import { SearchCourseDto } from './dto/search-course.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { CreateLessonMaterialDto } from './dto/create-lesson-material.dto';
@@ -64,6 +65,97 @@ export class CourseService {
     });
 
     return { message: 'Lấy danh sách khóa học thành công', data: courses };
+  }
+
+  async searchCourses(dto: SearchCourseDto) {
+    const {
+      name,
+      teacherId,
+      teacherName,
+      topicId,
+      topicIds,
+      minPrice,
+      maxPrice,
+      minStar,
+      maxStar,
+      fromDate,
+      toDate,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      page = 1,
+      limit = 20,
+    } = dto;
+
+    // Coerce numeric-like query params to numbers because query strings may remain as strings
+    const minPriceNum = minPrice !== undefined && minPrice !== null ? Number(minPrice) : undefined;
+    const maxPriceNum = maxPrice !== undefined && maxPrice !== null ? Number(maxPrice) : undefined;
+    const minStarNum = minStar !== undefined && minStar !== null ? Number(minStar) : undefined;
+    const maxStarNum = maxStar !== undefined && maxStar !== null ? Number(maxStar) : undefined;
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.max(1, Math.min(100, Number(limit) || 20));
+
+    const where: any = {
+      isDeleted: false,
+      status: { in: [CourseStatus.published, CourseStatus.update, CourseStatus.need_update] },
+    };
+
+    if (name) {
+      where.name = { contains: name, mode: 'insensitive' };
+    }
+
+    if (teacherId) {
+      where.userId = teacherId;
+    }
+
+    if (teacherName) {
+      where.user = { fullName: { contains: teacherName, mode: 'insensitive' } };
+    }
+
+    if (topicIds && Array.isArray(topicIds) && topicIds.length > 0) {
+      where.courseTopics = { some: { topicId: { in: topicIds } } };
+    } else if (topicId) {
+      where.courseTopics = { some: { topicId } };
+    }
+
+    if (minPriceNum !== undefined || maxPriceNum !== undefined) {
+      where.price = {};
+      if (!Number.isNaN(minPriceNum)) where.price.gte = minPriceNum;
+      if (!Number.isNaN(maxPriceNum)) where.price.lte = maxPriceNum;
+    }
+
+    if (minStarNum !== undefined || maxStarNum !== undefined) {
+      where.star = {};
+      if (!Number.isNaN(minStarNum)) where.star.gte = minStarNum;
+      if (!Number.isNaN(maxStarNum)) where.star.lte = maxStarNum;
+    }
+
+    if (fromDate || toDate) {
+      where.createdAt = {};
+      if (fromDate) where.createdAt.gte = new Date(fromDate);
+      if (toDate) where.createdAt.lte = new Date(toDate);
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.course.findMany({
+        where,
+        select: COURSE_LIST_SELECT,
+        orderBy: { [sortBy]: sortOrder },
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
+      }),
+      this.prisma.course.count({ where }),
+    ]);
+
+    return {
+      message: 'Tìm kiếm khóa học thành công',
+      data,
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    };
   }
 
   async findAllForAdmin(query: Record<string, string>) {

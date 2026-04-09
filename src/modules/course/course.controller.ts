@@ -7,6 +7,7 @@ import type { IUser } from '@/shared/types/user.type';
 import { SkipPermission } from '@/common/decorators/authenticated.decorator';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
+import { SearchCourseDto } from './dto/search-course.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { CreateLessonMaterialDto } from './dto/create-lesson-material.dto';
@@ -44,6 +45,12 @@ export class CourseController {
   @Get('purchased')
   findMy(@User() user: IUser) {
     return this.courseService.findMyCourses(user.id);
+  }
+
+  @PublicAPI()
+  @Get('search')
+  search(@Query() dto: SearchCourseDto) {
+    return this.courseService.searchCourses(dto);
   }
 
   @PublicAPI()

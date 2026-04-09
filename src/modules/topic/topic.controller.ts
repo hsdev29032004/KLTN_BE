@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/commo
 import { TopicService } from './topic.service';
 import { CreateTopicDto } from './dto/create-topic.dto';
 import { UpdateTopicDto } from './dto/update-topic.dto';
+import { PublicAPI } from '@/common/decorators/public-api.decorator';
 
 @Controller('topic')
 export class TopicController {
@@ -13,6 +14,7 @@ export class TopicController {
   }
 
   @Get()
+  @PublicAPI()
   findAll() {
     return this.topicService.findAll();
   }
