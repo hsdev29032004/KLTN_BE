@@ -764,6 +764,11 @@ export class CourseService {
     if (course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
 
+    // Không cho phép thao tác khi khóa học đang chờ duyệt hoặc đang chờ cập nhật
+    if (course.status === CourseStatus.pending || course.status === CourseStatus.update) {
+      throw new BadRequestException('Không thể thêm bài học khi khóa học đang chờ phê duyệt');
+    }
+
     const lesson = await this.prisma.lesson.create({
       data: {
         name: dto.name,
@@ -784,11 +789,16 @@ export class CourseService {
   ) {
     const lesson = await this.prisma.lesson.findFirst({
       where: { id: lessonId, isDeleted: false },
-      include: { course: { select: { userId: true } } },
+      include: { course: { select: { userId: true, status: true } } },
     });
     if (!lesson) throw new NotFoundException('Bài học không tồn tại');
     if (lesson.course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác bài học này');
+
+    // Không cho phép thao tác khi khóa học đang chờ duyệt hoặc đang chờ cập nhật
+    if (lesson.course.status === CourseStatus.pending || lesson.course.status === CourseStatus.update) {
+      throw new BadRequestException('Không thể thêm tài liệu khi khóa học đang chờ phê duyệt');
+    }
 
     const material = await this.prisma.lessonMaterial.create({
       data: {
@@ -840,11 +850,17 @@ export class CourseService {
   async updateLesson(userId: string, lessonId: string, dto: UpdateLessonDto) {
     const lesson = await this.prisma.lesson.findFirst({
       where: { id: lessonId, isDeleted: false },
-      include: { course: { select: { userId: true } } },
+      include: { course: { select: { userId: true, status: true } } },
     });
     if (!lesson) throw new NotFoundException('Bài học không tồn tại');
     if (lesson.course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác bài học này');
+
+    // Không cho phép chỉnh sửa khi khóa học đang chờ duyệt hoặc đang chờ cập nhật
+    const courseStatus = (lesson.course.status as CourseStatus);
+    if (courseStatus === CourseStatus.pending || courseStatus === CourseStatus.update) {
+      throw new BadRequestException('Không thể chỉnh sửa bài học khi khóa học đang chờ phê duyệt');
+    }
 
     const updated = await this.prisma.lesson.update({
       where: { id: lessonId },
@@ -980,11 +996,16 @@ export class CourseService {
   async deleteLesson(userId: string, lessonId: string) {
     const lesson = await this.prisma.lesson.findFirst({
       where: { id: lessonId, isDeleted: false },
-      include: { course: { select: { userId: true } } },
+      include: { course: { select: { userId: true, status: true } } },
     });
     if (!lesson) throw new NotFoundException('Bài học không tồn tại');
     if (lesson.course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác bài học này');
+
+    // Không cho phép xóa khi khóa học đang chờ duyệt hoặc đang chờ cập nhật
+    if (lesson.course.status === CourseStatus.pending || lesson.course.status === CourseStatus.update) {
+      throw new BadRequestException('Không thể xóa bài học khi khóa học đang chờ phê duyệt');
+    }
 
     if (lesson.status === LessonStatus.draft) {
       // Draft lesson → xóa thật kèm toàn bộ tài liệu
@@ -1015,12 +1036,17 @@ export class CourseService {
     const material = await this.prisma.lessonMaterial.findFirst({
       where: { id: materialId, isDeleted: false },
       include: {
-        lesson: { include: { course: { select: { userId: true } } } },
+        lesson: { include: { course: { select: { userId: true, status: true } } } },
       },
     });
     if (!material) throw new NotFoundException('Tài liệu không tồn tại');
     if (material.lesson.course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác tài liệu này');
+
+    // Không cho phép xóa khi khóa học đang chờ duyệt hoặc đang chờ cập nhật
+    if (material.lesson.course.status === CourseStatus.pending || material.lesson.course.status === CourseStatus.update) {
+      throw new BadRequestException('Không thể xóa tài liệu khi khóa học đang chờ phê duyệt');
+    }
 
     if (material.status === LessonStatus.draft) {
       // Draft → xóa thật
