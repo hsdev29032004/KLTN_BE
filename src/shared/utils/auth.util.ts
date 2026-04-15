@@ -6,6 +6,8 @@ export const buildJwtPayload = (user: User) => {
     email: user.email,
     fullName: user.fullName,
     avatar: user.avatar,
+    bankNumber: user.bankNumber,
+    bankName: user.bankName,
     roleId: user.roleId,
     banId: user.banId,
     isDeleted: user.isDeleted,

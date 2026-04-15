@@ -1,8 +1,11 @@
 -- CreateEnum
-CREATE TYPE "CourseStatus" AS ENUM ('draft', 'pending', 'published');
+CREATE TYPE "CourseApprovalStatus" AS ENUM ('pending', 'approved', 'rejected');
 
 -- CreateEnum
-CREATE TYPE "LessonStatus" AS ENUM ('draft', 'pending', 'published');
+CREATE TYPE "CourseStatus" AS ENUM ('draft', 'pending', 'published', 'deleted', 'update', 'outdated', 'rejected', 'need_update');
+
+-- CreateEnum
+CREATE TYPE "LessonStatus" AS ENUM ('draft', 'pending', 'published', 'outdated', 'deleted');
 
 -- CreateEnum
 CREATE TYPE "MaterialType" AS ENUM ('video', 'pdf', 'img', 'link', 'other');
@@ -11,7 +14,7 @@ CREATE TYPE "MaterialType" AS ENUM ('video', 'pdf', 'img', 'link', 'other');
 CREATE TYPE "CourseReportStatus" AS ENUM ('pending', 'resolved', 'dismissed');
 
 -- CreateEnum
-CREATE TYPE "CoursePurchaseStatus" AS ENUM ('purchased', 'refund_requested', 'refunded');
+CREATE TYPE "CoursePurchaseStatus" AS ENUM ('pending', 'purchased', 'failed', 'refund_requested', 'refunded');
 
 -- CreateEnum
 CREATE TYPE "TransactionType" AS ENUM ('deposit', 'withdrawal');
@@ -36,8 +39,10 @@ CREATE TABLE "users" (
     "deletedAt" TIMESTAMP(3),
     "refreshToken" TEXT,
     "availableAmount" INTEGER DEFAULT 0,
-    "lockAmount" INTEGER DEFAULT 0,
+    "bankNumber" TEXT,
+    "bankName" TEXT,
     "slug" TEXT NOT NULL,
+    "introduce" TEXT NOT NULL DEFAULT '',
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
@@ -167,25 +172,34 @@ CREATE TABLE "course_topics" (
 );
 
 -- CreateTable
-CREATE TABLE "tickets" (
+CREATE TABLE "conversations" (
     "id" TEXT NOT NULL,
-    "lessonId" TEXT NOT NULL,
-    "senderId" TEXT NOT NULL,
-    "receiverId" TEXT NOT NULL,
-    "title" TEXT NOT NULL,
-    "isClosed" BOOLEAN NOT NULL DEFAULT false,
-    "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+    "name" TEXT NOT NULL DEFAULT '',
+    "courseId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "isDeleted" BOOLEAN NOT NULL DEFAULT false,
     "deletedAt" TIMESTAMP(3),
 
-    CONSTRAINT "tickets_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "conversations_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "ticket_messages" (
+CREATE TABLE "conversation_members" (
     "id" TEXT NOT NULL,
-    "ticketId" TEXT NOT NULL,
+    "conversationId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "isHost" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "conversation_members_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "messages" (
+    "id" TEXT NOT NULL,
+    "conversationId" TEXT NOT NULL,
     "senderId" TEXT NOT NULL,
     "content" TEXT NOT NULL,
     "isDeleted" BOOLEAN NOT NULL DEFAULT false,
@@ -193,7 +207,7 @@ CREATE TABLE "ticket_messages" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "deletedAt" TIMESTAMP(3),
 
-    CONSTRAINT "ticket_messages_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "messages_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -228,11 +242,12 @@ CREATE TABLE "course_reports" (
 );
 
 -- CreateTable
-CREATE TABLE "course_purchases" (
+CREATE TABLE "invoices" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "amount" INTEGER NOT NULL,
-    "status" "CoursePurchaseStatus" NOT NULL DEFAULT 'purchased',
+    "status" "CoursePurchaseStatus" NOT NULL DEFAULT 'pending',
+    "vnpayTxnRef" TEXT,
     "isDeleted" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -242,16 +257,14 @@ CREATE TABLE "course_purchases" (
 );
 
 -- CreateTable
-CREATE TABLE "invoices" (
+CREATE TABLE "user_courses" (
     "id" TEXT NOT NULL,
-    "coursePurchaseId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
     "courseId" TEXT NOT NULL,
-    "price" INTEGER NOT NULL,
-    "status" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "invoices_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "user_courses_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -274,10 +287,9 @@ CREATE TABLE "transactions" (
 -- CreateTable
 CREATE TABLE "systems" (
     "id" TEXT NOT NULL DEFAULT 'system',
-    "timeRefund" INTEGER NOT NULL,
-    "limitRefund" INTEGER NOT NULL,
     "comissionRate" DECIMAL(5,2) NOT NULL,
     "term" TEXT NOT NULL,
+    "contact" TEXT NOT NULL DEFAULT '',
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "systems_pkey" PRIMARY KEY ("id")
@@ -296,6 +308,112 @@ CREATE TABLE "banks" (
     "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "banks_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "detail_invoices" (
+    "id" TEXT NOT NULL,
+    "coursePurchaseId" TEXT NOT NULL,
+    "courseId" TEXT NOT NULL,
+    "price" INTEGER NOT NULL,
+    "commissionRate" DECIMAL(5,2) NOT NULL DEFAULT 0,
+    "status" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "invoices_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "cart_items" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "courseId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "cart_items_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "course_approvals" (
+    "id" TEXT NOT NULL,
+    "courseId" TEXT NOT NULL,
+    "teacherId" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "status" "CourseApprovalStatus" NOT NULL DEFAULT 'pending',
+    "reason" TEXT,
+    "adminId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "course_approvals_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "exams" (
+    "id" TEXT NOT NULL,
+    "courseId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "passPercent" INTEGER NOT NULL,
+    "retryAfterDays" INTEGER NOT NULL,
+    "questionCount" INTEGER NOT NULL,
+    "duration" INTEGER NOT NULL,
+    "status" "LessonStatus" NOT NULL DEFAULT 'draft',
+    "publisherId" TEXT,
+    "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
+    "publishedAt" TIMESTAMP(3),
+
+    CONSTRAINT "exams_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "exam_questions" (
+    "id" TEXT NOT NULL,
+    "examId" TEXT NOT NULL,
+    "content" TEXT NOT NULL,
+    "optionA" TEXT NOT NULL,
+    "optionB" TEXT NOT NULL,
+    "optionC" TEXT NOT NULL,
+    "optionD" TEXT NOT NULL,
+    "correctAnswer" TEXT NOT NULL,
+    "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "exam_questions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "exam_attempts" (
+    "id" TEXT NOT NULL,
+    "examId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "score" DECIMAL(5,2),
+    "isPassed" BOOLEAN NOT NULL DEFAULT false,
+    "isCompleted" BOOLEAN NOT NULL DEFAULT false,
+    "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "submittedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "exam_attempts_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "exam_attempt_answers" (
+    "id" TEXT NOT NULL,
+    "attemptId" TEXT NOT NULL,
+    "questionId" TEXT NOT NULL,
+    "selectedAnswer" TEXT,
+    "isCorrect" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "exam_attempt_answers_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -323,7 +441,25 @@ CREATE UNIQUE INDEX "topics_slug_key" ON "topics"("slug");
 CREATE UNIQUE INDEX "course_topics_courseId_topicId_key" ON "course_topics"("courseId", "topicId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "invoices_coursePurchaseId_courseId_key" ON "invoices"("coursePurchaseId", "courseId");
+CREATE UNIQUE INDEX "conversations_courseId_key" ON "conversations"("courseId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "conversation_members_conversationId_userId_key" ON "conversation_members"("conversationId", "userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "invoices_vnpayTxnRef_key" ON "invoices"("vnpayTxnRef");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "user_courses_userId_courseId_key" ON "user_courses"("userId", "courseId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "invoices_coursePurchaseId_courseId_key" ON "detail_invoices"("coursePurchaseId", "courseId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "cart_items_userId_courseId_key" ON "cart_items"("userId", "courseId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "exam_attempt_answers_attemptId_questionId_key" ON "exam_attempt_answers"("attemptId", "questionId");
 
 -- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_banId_fkey" FOREIGN KEY ("banId") REFERENCES "bans"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -362,19 +498,19 @@ ALTER TABLE "course_topics" ADD CONSTRAINT "course_topics_courseId_fkey" FOREIGN
 ALTER TABLE "course_topics" ADD CONSTRAINT "course_topics_topicId_fkey" FOREIGN KEY ("topicId") REFERENCES "topics"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "tickets" ADD CONSTRAINT "tickets_lessonId_fkey" FOREIGN KEY ("lessonId") REFERENCES "lessons"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "conversations" ADD CONSTRAINT "conversations_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "tickets" ADD CONSTRAINT "tickets_receiverId_fkey" FOREIGN KEY ("receiverId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "conversation_members" ADD CONSTRAINT "conversation_members_conversationId_fkey" FOREIGN KEY ("conversationId") REFERENCES "conversations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "tickets" ADD CONSTRAINT "tickets_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "conversation_members" ADD CONSTRAINT "conversation_members_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ticket_messages" ADD CONSTRAINT "ticket_messages_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "messages" ADD CONSTRAINT "messages_conversationId_fkey" FOREIGN KEY ("conversationId") REFERENCES "conversations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ticket_messages" ADD CONSTRAINT "ticket_messages_ticketId_fkey" FOREIGN KEY ("ticketId") REFERENCES "tickets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "messages" ADD CONSTRAINT "messages_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "course_reviews" ADD CONSTRAINT "course_reviews_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -392,16 +528,58 @@ ALTER TABLE "course_reports" ADD CONSTRAINT "course_reports_processorId_fkey" FO
 ALTER TABLE "course_reports" ADD CONSTRAINT "course_reports_reporterId_fkey" FOREIGN KEY ("reporterId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "course_purchases" ADD CONSTRAINT "course_purchases_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "invoices" ADD CONSTRAINT "course_purchases_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "invoices" ADD CONSTRAINT "invoices_coursePurchaseId_fkey" FOREIGN KEY ("coursePurchaseId") REFERENCES "course_purchases"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "user_courses" ADD CONSTRAINT "user_courses_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "invoices" ADD CONSTRAINT "invoices_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "user_courses" ADD CONSTRAINT "user_courses_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "transactions" ADD CONSTRAINT "transactions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "banks" ADD CONSTRAINT "banks_systemId_fkey" FOREIGN KEY ("systemId") REFERENCES "systems"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "detail_invoices" ADD CONSTRAINT "invoices_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "detail_invoices" ADD CONSTRAINT "invoices_coursePurchaseId_fkey" FOREIGN KEY ("coursePurchaseId") REFERENCES "invoices"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "cart_items" ADD CONSTRAINT "cart_items_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "cart_items" ADD CONSTRAINT "cart_items_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "course_approvals" ADD CONSTRAINT "course_approvals_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "course_approvals" ADD CONSTRAINT "course_approvals_teacherId_fkey" FOREIGN KEY ("teacherId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "course_approvals" ADD CONSTRAINT "course_approvals_adminId_fkey" FOREIGN KEY ("adminId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exams" ADD CONSTRAINT "exams_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exams" ADD CONSTRAINT "exams_publisherId_fkey" FOREIGN KEY ("publisherId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exam_questions" ADD CONSTRAINT "exam_questions_examId_fkey" FOREIGN KEY ("examId") REFERENCES "exams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exam_attempts" ADD CONSTRAINT "exam_attempts_examId_fkey" FOREIGN KEY ("examId") REFERENCES "exams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exam_attempts" ADD CONSTRAINT "exam_attempts_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exam_attempt_answers" ADD CONSTRAINT "exam_attempt_answers_attemptId_fkey" FOREIGN KEY ("attemptId") REFERENCES "exam_attempts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "exam_attempt_answers" ADD CONSTRAINT "exam_attempt_answers_questionId_fkey" FOREIGN KEY ("questionId") REFERENCES "exam_questions"("id") ON DELETE CASCADE ON UPDATE CASCADE;

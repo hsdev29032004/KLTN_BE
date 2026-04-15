@@ -22,6 +22,8 @@ model User {
   deletedAt                DateTime?
   refreshToken             String?
   availableAmount          Int?             @default(0)
+  bankNumber               String?
+  bankName                 String?
   slug                     String           @unique
   introduce                String           @default("")
   processedReports         CourseReport[]   @relation("processor")

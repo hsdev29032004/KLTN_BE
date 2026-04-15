@@ -3,6 +3,8 @@ export interface IUser {
   email: string;
   fullName: string;
   avatar: string;
+  bankNumber?: string | null;
+  bankName?: string | null;
   role: {
     id: string;
     name: string;
