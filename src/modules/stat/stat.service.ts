@@ -289,6 +289,9 @@ export class StatService {
     if (teacherId) where.courses = { userId: teacherId, isDeleted: false };
     if (studentId) where.invoices = { userId: studentId };
 
+    // Nếu đang thống kê theo giảng viên thì chỉ tính các detailInvoices từ hóa đơn đã thanh toán
+    if (teacherId) where.invoices = { status: 'purchased' };
+
     // Tổng hợp
     const [totalAgg, items, totalCount] = await Promise.all([
       this.prisma.detailInvoices.aggregate({
@@ -398,6 +401,8 @@ export class StatService {
     const where: Prisma.DetailInvoicesWhereInput = {};
     const dateRange = parseDateRange(fromDate, toDate);
     if (dateRange) where.createdAt = dateRange;
+    // Chỉ tính các detail invoices thuộc invoice đã thanh toán
+    where.invoices = { status: 'purchased' };
 
     // Lấy tất cả detail invoices kèm teacher info
     const allInvoices = await this.prisma.detailInvoices.findMany({
@@ -468,6 +473,9 @@ export class StatService {
     const dateRange = parseDateRange(fromDate, toDate);
     if (dateRange) where.createdAt = dateRange;
     if (teacherId) where.courses = { userId: teacherId, isDeleted: false };
+
+    // Nếu lọc theo giảng viên hoặc khi tính doanh thu khóa học, chỉ tính detail invoices từ hóa đơn đã thanh toán
+    where.invoices = { status: 'purchased' };
 
     const allInvoices = await this.prisma.detailInvoices.findMany({
       where,
@@ -802,10 +810,16 @@ export class StatService {
       }),
       this.prisma.detailInvoices.aggregate({
         _sum: { price: true },
-        where: { courses: { userId: instructorId, isDeleted: false } },
+        where: {
+          courses: { userId: instructorId, isDeleted: false },
+          invoices: { status: 'purchased' },
+        },
       }),
       this.prisma.detailInvoices.findMany({
-        where: { courses: { userId: instructorId, isDeleted: false } },
+        where: {
+          courses: { userId: instructorId, isDeleted: false },
+          invoices: { status: 'purchased' },
+        },
         select: {
           id: true,
           price: true,
