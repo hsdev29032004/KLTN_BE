@@ -72,18 +72,18 @@ export class PermissionGuard implements CanActivate {
       if (!permission) return false;
 
       const permissionApi = this.normalizeApiPath(permission.api);
-      const permissionMethods = rolePermission.methods.toUpperCase();
+      const permissionMethods = (rolePermission.methods || '').toUpperCase();
 
-      // Check api path match
-      const apiMatch = permissionApi === reqPath;
+      // Check api path match by comparing the first two path segments.
+      const apiMatch = this.getPathPrefix(permissionApi, 2) === this.getPathPrefix(reqPath, 2);
       if (!apiMatch) return false;
 
       // Check method match
       // Nếu là ALL thì chấp nhận tất cả methods
       if (permissionMethods === 'ALL') return true;
 
-      // Nếu method chứa | thì split và check
-      const allowedMethods = permissionMethods.split('|').map((m: string) => m.trim());
+      // Methods may be separated by '|' or ',' — accept both
+      const allowedMethods = permissionMethods.split(/[|,]/).map((m: string) => m.trim()).filter(Boolean);
       return allowedMethods.includes(reqMethod);
     });
 
@@ -106,5 +106,15 @@ export class PermissionGuard implements CanActivate {
     // Remove leading slash for comparison
     normalized = normalized.replace(/^\//, '');
     return normalized;
+  }
+
+  /**
+   * Return prefix of a path composed of first `levels` segments.
+   * Example: getPathPrefix('api/roles/123/more', 2) -> 'api/roles'
+   */
+  private getPathPrefix(path: string, levels = 2): string {
+    if (!path) return '';
+    const parts = path.split('/').filter(Boolean);
+    return parts.slice(0, Math.max(1, levels)).join('/');
   }
 }
