@@ -19,6 +19,7 @@ import { UpdateLessonMaterialDto } from './dto/update-lesson-material.dto';
 import type { MaterialType } from '@prisma/client';
 import { CourseStatus, LessonStatus } from '@prisma/client';
 import { VNPay, ignoreLogger, VnpLocale, HashAlgorithm, dateFormat } from 'vnpay';
+import { CloudinaryService } from '@/modules/cloudinary/cloudinary.service';
 
 const COURSE_LIST_SELECT = {
   id: true,
@@ -52,7 +53,13 @@ const COURSE_LIST_SELECT = {
 
 @Injectable()
 export class CourseService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService, private readonly cloudinary: CloudinaryService) { }
+
+  private isImageType(type?: string) {
+    if (!type) return false;
+    const t = type.toLowerCase();
+    return t === 'image' || t === 'img';
+  }
 
   async findAll() {
     const courses = await this.prisma.course.findMany({
@@ -727,7 +734,7 @@ export class CourseService {
 
   // ── Create Course ─────────────────────────────────────────────────────────
 
-  async createCourse(userId: string, dto: CreateCourseDto) {
+  async createCourse(userId: string, dto: CreateCourseDto, thumbnailFile?: Express.Multer.File) {
     let slug = generateSlug(dto.name);
 
     // Đảm bảo slug unique
@@ -736,11 +743,25 @@ export class CourseService {
       slug = `${slug}-${Date.now()}`;
     }
 
+    // If a file was uploaded, store it on Cloudinary and use the returned URL
+    let thumbnailUrl = dto.thumbnail;
+
+    // Coerce price to number when provided via FormData (frontend may send it as string)
+    let priceNum: number | undefined = undefined;
+    if (dto.price !== undefined && dto.price !== null) {
+      priceNum = Number(dto.price as any);
+      if (Number.isNaN(priceNum)) throw new BadRequestException('Giá không hợp lệ');
+    }
+    if (thumbnailFile) {
+      const uploaded = await this.cloudinary.uploadFile(thumbnailFile, 'courses');
+      thumbnailUrl = uploaded.url;
+    }
+
     const course = await this.prisma.course.create({
       data: {
         name: dto.name,
-        price: dto.price,
-        thumbnail: dto.thumbnail,
+        price: priceNum as number,
+        thumbnail: thumbnailUrl,
         content: dto.content,
         description: dto.description,
         slug,
@@ -786,6 +807,7 @@ export class CourseService {
     userId: string,
     lessonId: string,
     dto: CreateLessonMaterialDto,
+    file?: Express.Multer.File,
   ) {
     const lesson = await this.prisma.lesson.findFirst({
       where: { id: lessonId, isDeleted: false },
@@ -800,10 +822,21 @@ export class CourseService {
       throw new BadRequestException('Không thể thêm tài liệu khi khóa học đang chờ phê duyệt');
     }
 
+    // If material is an image and a file was uploaded, use Cloudinary
+    let url = dto.url;
+    if (this.isImageType(dto.type as string) && file) {
+      const uploaded = await this.cloudinary.uploadFile(file, 'materials');
+      url = uploaded.url;
+    }
+
+    if (!url) {
+      throw new BadRequestException('Trường "url" là bắt buộc cho tài liệu');
+    }
+
     const material = await this.prisma.lessonMaterial.create({
       data: {
         name: dto.name,
-        url: dto.url,
+        url,
         type: dto.type as MaterialType,
         lessonId,
         status: LessonStatus.draft,
@@ -815,7 +848,7 @@ export class CourseService {
 
   // ── Update Course ─────────────────────────────────────────────────────────
 
-  async updateCourse(userId: string, courseId: string, dto: UpdateCourseDto) {
+  async updateCourse(userId: string, courseId: string, dto: UpdateCourseDto, thumbnailFile?: Express.Multer.File) {
     const course = await this.prisma.course.findFirst({
       where: { id: courseId, isDeleted: false },
     });
@@ -824,6 +857,18 @@ export class CourseService {
       throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
 
     const data: any = { ...dto };
+
+    // Coerce price to number for updates (FormData sends strings)
+    if (dto.price !== undefined && dto.price !== null) {
+      const p = Number(dto.price as any);
+      if (Number.isNaN(p)) throw new BadRequestException('Giá không hợp lệ');
+      data.price = p;
+    }
+
+    if (thumbnailFile) {
+      const uploaded = await this.cloudinary.uploadFile(thumbnailFile, 'courses');
+      data.thumbnail = uploaded.url;
+    }
 
     // Nếu đổi tên thì cập nhật slug
     if (dto.name && dto.name !== course.name) {
@@ -876,6 +921,7 @@ export class CourseService {
     userId: string,
     materialId: string,
     dto: UpdateLessonMaterialDto,
+    file?: Express.Multer.File,
   ) {
     const material = await this.prisma.lessonMaterial.findFirst({
       where: { id: materialId, isDeleted: false },
@@ -903,19 +949,34 @@ export class CourseService {
 
     // draft → cập nhật trực tiếp, không tạo bản outdated
     if (material.status === LessonStatus.draft) {
+      const updateData: any = {};
+      if (dto.name !== undefined) updateData.name = dto.name;
+      if (dto.type !== undefined) updateData.type = dto.type as MaterialType;
+
+      // If updating to an image and file provided, upload
+      if (this.isImageType(dto.type as string) && file) {
+        const uploaded = await this.cloudinary.uploadFile(file, 'materials');
+        updateData.url = uploaded.url;
+      } else if (dto.url !== undefined) {
+        updateData.url = dto.url;
+      }
+
       const updated = await this.prisma.lessonMaterial.update({
         where: { id: materialId },
-        data: {
-          ...(dto.name !== undefined && { name: dto.name }),
-          ...(dto.url !== undefined && { url: dto.url }),
-          ...(dto.type !== undefined && { type: dto.type as MaterialType }),
-        },
+        data: updateData,
       });
       return { message: 'Cập nhật tài liệu thành công', data: updated };
     }
 
     // published → đánh dấu outdated, tạo bản nháp mới
     if (material.status === LessonStatus.published) {
+      // Determine new URL: if updating to image and file provided, upload first
+      let newUrl = dto.url ?? material.url;
+      if (this.isImageType(dto.type as string) && file) {
+        const uploaded = await this.cloudinary.uploadFile(file, 'materials');
+        newUrl = uploaded.url;
+      }
+
       const [, newMaterial] = await this.prisma.$transaction([
         this.prisma.lessonMaterial.update({
           where: { id: materialId },
@@ -924,7 +985,7 @@ export class CourseService {
         this.prisma.lessonMaterial.create({
           data: {
             name: dto.name ?? material.name,
-            url: dto.url ?? material.url,
+            url: newUrl,
             type: (dto.type as MaterialType) ?? material.type,
             lessonId: material.lessonId,
             isPreview: material.isPreview,
