@@ -292,8 +292,8 @@ export class CourseService {
     });
 
     const txnRef = `${invoice.id}_${Date.now()}`;
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const expireAt = new Date();
+    expireAt.setMinutes(expireAt.getMinutes() + 30);
 
     // Normalize IP
     const normalizedIp = ipAddr === '::1' || ipAddr === '::ffff:127.0.0.1' || !ipAddr
@@ -308,7 +308,7 @@ export class CourseService {
       vnp_ReturnUrl: `${process.env.BE_DOMAIN || 'http://localhost:3001'}/api/payment/vnpay-return`,
       vnp_Locale: VnpLocale.VN,
       vnp_CreateDate: dateFormat(new Date()),
-      vnp_ExpireDate: dateFormat(tomorrow),
+      vnp_ExpireDate: dateFormat(expireAt),
     });
 
     // Lưu txnRef vào invoice
