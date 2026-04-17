@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { CreateSystemDto } from './dto/create-system.dto';
 import { UpdateSystemDto } from './dto/update-system.dto';
 import { PrismaService } from '../../infras/prisma/prisma.service';
@@ -6,7 +6,7 @@ import { UpdateSystemInfoDto } from './dto/update-system-info.dto';
 
 @Injectable()
 export class SystemService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async getSystem() {
     return this.prisma.system.findUnique({
@@ -22,6 +22,13 @@ export class SystemService {
   }
 
   async updateSystem(updateSystemInfoDto: UpdateSystemInfoDto) {
+    // Validate commission rate range defensively in service layer
+    if (
+      updateSystemInfoDto.comissionRate !== undefined &&
+      (updateSystemInfoDto.comissionRate < 0 || updateSystemInfoDto.comissionRate > 100)
+    ) {
+      throw new BadRequestException('Tỷ lệ hoa hồng phải nằm trong khoảng 0-100');
+    }
     return this.prisma.system.update({
       where: { id: 'system' },
       data: {

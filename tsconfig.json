@@ -14,8 +14,11 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
+    "strictPropertyInitialization": false,
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": [
+        "src/*"
+      ]
     },
     "incremental": true,
     "skipLibCheck": true,

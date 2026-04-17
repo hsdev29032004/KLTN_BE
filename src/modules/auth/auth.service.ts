@@ -93,6 +93,8 @@ export class AuthService {
     const email = registerDto.email;
     const password = registerDto.password;
     const fullName = registerDto.fullName ?? registerDto.name ?? '';
+    const bankNumber = registerDto.bankNumber ?? null;
+    const bankName = registerDto.bankName ?? null;
     // normalize role to lowercase string
     const role = typeof registerDto.role === 'string' ? registerDto.role.toLowerCase() : undefined;
 
@@ -129,6 +131,8 @@ export class AuthService {
         email,
         password: hash,
         fullName,
+        bankNumber,
+        bankName,
         slug: fullName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
         roleId: assignedRole.id,
       },
@@ -194,6 +198,8 @@ export class AuthService {
         email: userData.email,
         fullName: userData.fullName,
         avatar: userData.avatar,
+        bankNumber: userData.bankNumber ?? null,
+        bankName: userData.bankName ?? null,
         role,
         ban,
       },
@@ -268,6 +274,8 @@ export class AuthService {
         email: user.email,
         fullName: user.fullName,
         avatar: user.avatar,
+        bankNumber: user.bankNumber ?? null,
+        bankName: user.bankName ?? null,
         role: {
           id: user.role.id,
           name: user.role.name,

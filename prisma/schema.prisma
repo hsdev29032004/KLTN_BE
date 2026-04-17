@@ -22,6 +22,8 @@ model User {
   deletedAt                DateTime?
   refreshToken             String?
   availableAmount          Int?             @default(0)
+  bankNumber               String?
+  bankName                 String?
   slug                     String           @unique
   introduce                String           @default("")
   processedReports         CourseReport[]   @relation("processor")
@@ -35,6 +37,12 @@ model User {
   messages                 Message[]
   transactions             Transaction[]
   userCourses              UserCourse[]
+  conversationMembers      ConversationMember[]
+  teacherApprovals         CourseApproval[] @relation("teacherApprovals")
+  adminApprovals           CourseApproval[] @relation("adminApprovals")
+  publishedExams           Exam[]           @relation("ExamPublishedBy")
+  examAttempts             ExamAttempt[]
+  cartItems                CartItem[]
   ban                      Ban?             @relation(fields: [banId], references: [id])
   role                     Role             @relation(fields: [roleId], references: [id])
 
@@ -115,6 +123,9 @@ model Course {
   detail_invoices DetailInvoices[]
   lessons         Lesson[]
   userCourses     UserCourse[]
+  approvals       CourseApproval[]
+  exams           Exam[]
+  cartItems       CartItem[]
 
   @@map("courses")
 }
@@ -191,8 +202,23 @@ model Conversation {
   deletedAt DateTime?
   course    Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
   messages  Message[]
+  members   ConversationMember[]
 
   @@map("conversations")
+}
+
+model ConversationMember {
+  id             String       @id @default(uuid())
+  conversationId String
+  userId         String
+  isHost         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@map("conversation_members")
 }
 
 model Message {
@@ -248,7 +274,8 @@ model Invoices {
   id              String               @id(map: "course_purchases_pkey") @default(uuid())
   userId          String
   amount          Int
-  status          CoursePurchaseStatus @default(purchased)
+  status          CoursePurchaseStatus @default(pending)
+  vnpayTxnRef     String?              @unique
   isDeleted       Boolean              @default(false)
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
@@ -320,6 +347,7 @@ model DetailInvoices {
   coursePurchaseId String
   courseId         String
   price            Int
+  commissionRate   Decimal        @default(0) @db.Decimal(5, 2)
   status           String
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
@@ -331,16 +359,133 @@ model DetailInvoices {
   @@map("detail_invoices")
 }
 
+model CartItem {
+  id        String   @id @default(uuid())
+  userId    String
+  courseId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@map("cart_items")
+}
+
+model CourseApproval {
+  id          String               @id @default(uuid())
+  courseId     String
+  teacherId   String
+  description String
+  status      CourseApprovalStatus @default(pending)
+  reason      String?
+  adminId     String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  course      Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher     User                 @relation("teacherApprovals", fields: [teacherId], references: [id])
+  admin       User?                @relation("adminApprovals", fields: [adminId], references: [id])
+
+  @@map("course_approvals")
+}
+
+model Exam {
+  id              String       @id @default(uuid())
+  courseId         String
+  name            String
+  passPercent     Int          // % hoàn thiện để pass
+  retryAfterDays  Int          // số ngày có thể làm lại
+  questionCount   Int          // số câu hỏi lấy ngẫu nhiên mỗi lần thi
+  duration        Int          // thời gian làm bài (phút)
+  status          LessonStatus @default(draft)
+  publisherId     String?
+  isDeleted       Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  deletedAt       DateTime?
+  publishedAt     DateTime?
+  course          Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  publisher       User?        @relation("ExamPublishedBy", fields: [publisherId], references: [id])
+  questions       ExamQuestion[]
+  attempts        ExamAttempt[]
+
+  @@map("exams")
+}
+
+model ExamQuestion {
+  id            String   @id @default(uuid())
+  examId        String
+  content       String   // đề bài
+  optionA       String
+  optionB       String
+  optionC       String
+  optionD       String
+  correctAnswer String   // "A" | "B" | "C" | "D"
+  isDeleted     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  exam          Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  attemptAnswers ExamAttemptAnswer[]
+
+  @@map("exam_questions")
+}
+
+model ExamAttempt {
+  id          String              @id @default(uuid())
+  examId      String
+  userId      String
+  score       Decimal?            @db.Decimal(5, 2) // % điểm
+  isPassed    Boolean             @default(false)
+  isCompleted Boolean             @default(false) // đã nộp bài chưa
+  startedAt   DateTime            @default(now())
+  submittedAt DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  exam        Exam                @relation(fields: [examId], references: [id], onDelete: Cascade)
+  user        User                @relation(fields: [userId], references: [id])
+  answers     ExamAttemptAnswer[]
+
+  @@map("exam_attempts")
+}
+
+model ExamAttemptAnswer {
+  id            String       @id @default(uuid())
+  attemptId     String
+  questionId    String
+  selectedAnswer String?     // "A" | "B" | "C" | "D" hoặc null nếu chưa trả lời
+  isCorrect     Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  attempt       ExamAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question      ExamQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@map("exam_attempt_answers")
+}
+
+enum CourseApprovalStatus {
+  pending
+  approved
+  rejected
+}
+
 enum CourseStatus {
   draft
   pending
   published
+  deleted
+  update
+  outdated
+  rejected
+  need_update
 }
 
 enum LessonStatus {
   draft
   pending
   published
+  outdated
+  deleted
 }
 
 enum MaterialType {
@@ -358,7 +503,9 @@ enum CourseReportStatus {
 }
 
 enum CoursePurchaseStatus {
+  pending
   purchased
+  failed
   refund_requested
   refunded
 }

@@ -288,11 +288,12 @@
 | 1 | id | uuid | PK | Mã hóa đơn | x |
 | 2 | userId | uuid | FK (users) | Mã người mua | x |
 | 3 | amount | int | | Tổng số tiền (VNĐ) | x |
-| 4 | status | enum | DEFAULT purchased | Trạng thái hóa đơn | x |
-| 5 | isDeleted | boolean | DEFAULT false | Trạng thái xóa | x |
-| 6 | createdAt | timestamp | DEFAULT now() | Thời gian tạo | x |
-| 7 | updatedAt | timestamp | AUTO UPDATE | Thời gian cập nhật | x |
-| 8 | deletedAt | timestamp | | Thời gian xóa | |
+| 4 | status | enum | DEFAULT pending | Trạng thái hóa đơn | x |
+| 5 | vnpayTxnRef | varchar(255) | UNIQUE | Mã giao dịch VNPay | |
+| 6 | isDeleted | boolean | DEFAULT false | Trạng thái xóa | x |
+| 7 | createdAt | timestamp | DEFAULT now() | Thời gian tạo | x |
+| 8 | updatedAt | timestamp | AUTO UPDATE | Thời gian cập nhật | x |
+| 9 | deletedAt | timestamp | | Thời gian xóa | |
 
 ---
 
@@ -308,9 +309,10 @@
 | 2 | coursePurchaseId | uuid | FK (invoices) | Mã hóa đơn | x |
 | 3 | courseId | uuid | FK (courses) | Mã khóa học | x |
 | 4 | price | int | | Giá khóa học tại thời điểm mua (VNĐ) | x |
-| 5 | status | varchar(255) | | Trạng thái chi tiết | x |
-| 6 | createdAt | timestamp | DEFAULT now() | Thời gian tạo | x |
-| 7 | updatedAt | timestamp | AUTO UPDATE | Thời gian cập nhật | x |
+| 5 | commissionRate | decimal(5,2) | DEFAULT 0 | Tỷ lệ hoa hồng tại thời điểm mua (%) | x |
+| 6 | status | varchar(255) | | Trạng thái chi tiết | x |
+| 7 | createdAt | timestamp | DEFAULT now() | Thời gian tạo | x |
+| 8 | updatedAt | timestamp | AUTO UPDATE | Thời gian cập nhật | x |
 
 ---
 
@@ -361,11 +363,10 @@
 | **2. Mô tả chi tiết** | | | | | |
 | **STT** | **Thuộc tính** | **Kiểu dữ liệu** | **Ràng buộc** | **Mô tả** | **Not null** |
 | 1 | id | varchar(255) | PK, DEFAULT 'system' | Mã hệ thống | x |
-| 2 | timeRefund | int | | Thời gian cho phép hoàn tiền (ngày) | x |
-| 3 | limitRefund | int | | Giới hạn số lần hoàn tiền | x |
-| 4 | comissionRate | decimal(5,2) | | Tỷ lệ hoa hồng hệ thống (%) | x |
-| 5 | term | text | | Điều khoản sử dụng | x |
-| 6 | updatedAt | timestamp | AUTO UPDATE | Thời gian cập nhật | x |
+| 2 | comissionRate | decimal(5,2) | | Tỷ lệ hoa hồng hệ thống (%) | x |
+| 3 | term | text | | Điều khoản sử dụng | x |
+| 4 | contact | varchar(255) | DEFAULT '' | Thông tin liên hệ hệ thống | x |
+| 5 | updatedAt | timestamp | AUTO UPDATE | Thời gian cập nhật | x |
 
 ---
 
@@ -389,6 +390,145 @@
 
 ---
 
+## 4.2.21. Đặc tả bảng Thành viên cuộc trò chuyện (conversation_members)
+
+*Bảng 4-21: Đặc tả bảng Thành viên cuộc trò chuyện (conversation_members)*
+
+| 1. Mô tả chung: Lưu trữ thông tin thành viên tham gia cuộc trò chuyện | | | | | |
+|---|---|---|---|---|---|
+| **2. Mô tả chi tiết** | | | | | |
+| **STT** | **Thuộc tính** | **Kiểu dữ liệu** | **Ràng buộc** | **Mô tả** | **Not null** |
+| 1 | id | uuid | PK | Mã thành viên | x |
+| 2 | conversationId | uuid | FK (conversations) | Mã cuộc trò chuyện | x |
+| 3 | userId | uuid | FK (users) | Mã người dùng | x |
+| 4 | isHost | boolean | DEFAULT false | Là chủ phòng (giảng viên) | x |
+| 5 | createdAt | timestamp | DEFAULT now() | Thời gian tạo | x |
+| 6 | updatedAt | timestamp | AUTO UPDATE | Thời gian cập nhật | x |
+
+---
+
+## 4.2.22. Đặc tả bảng Mục giỏ hàng (cart_items)
+
+*Bảng 4-22: Đặc tả bảng Mục giỏ hàng (cart_items)*
+
+| 1. Mô tả chung: Lưu trữ thông tin các khóa học trong giỏ hàng của người dùng | | | | | |
+|---|---|---|---|---|---|
+| **2. Mô tả chi tiết** | | | | | |
+| **STT** | **Thuộc tính** | **Kiểu dữ liệu** | **Ràng buộc** | **Mô tả** | **Not null** |
+| 1 | id | uuid | PK | Mã mục giỏ hàng | x |
+| 2 | userId | uuid | FK (users) | Mã người dùng | x |
+| 3 | courseId | uuid | FK (courses) | Mã khóa học | x |
+| 4 | createdAt | timestamp | DEFAULT now() | Thời gian thêm vào giỏ | x |
+| 5 | updatedAt | timestamp | AUTO UPDATE | Thời gian cập nhật | x |
+
+---
+
+## 4.2.23. Đặc tả bảng Phê duyệt khóa học (course_approvals)
+
+*Bảng 4-23: Đặc tả bảng Phê duyệt khóa học (course_approvals)*
+
+| 1. Mô tả chung: Lưu trữ lịch sử yêu cầu phê duyệt và kết quả xét duyệt khóa học | | | | | |
+|---|---|---|---|---|---|
+| **2. Mô tả chi tiết** | | | | | |
+| **STT** | **Thuộc tính** | **Kiểu dữ liệu** | **Ràng buộc** | **Mô tả** | **Not null** |
+| 1 | id | uuid | PK | Mã phê duyệt | x |
+| 2 | courseId | uuid | FK (courses) | Mã khóa học | x |
+| 3 | teacherId | uuid | FK (users) | Mã giảng viên gửi yêu cầu | x |
+| 4 | description | text | | Mô tả thay đổi của giảng viên | x |
+| 5 | status | enum | DEFAULT pending | Trạng thái phê duyệt | x |
+| 6 | reason | text | | Lý do từ chối (nếu có) | |
+| 7 | adminId | uuid | FK (users) | Mã admin xử lý | |
+| 8 | createdAt | timestamp | DEFAULT now() | Thời gian tạo | x |
+| 9 | updatedAt | timestamp | AUTO UPDATE | Thời gian cập nhật | x |
+
+---
+
+## 4.2.24. Đặc tả bảng Đề thi (exams)
+
+*Bảng 4-24: Đặc tả bảng Đề thi (exams)*
+
+| 1. Mô tả chung: Lưu trữ thông tin đề thi của khóa học | | | | | |
+|---|---|---|---|---|---|
+| **2. Mô tả chi tiết** | | | | | |
+| **STT** | **Thuộc tính** | **Kiểu dữ liệu** | **Ràng buộc** | **Mô tả** | **Not null** |
+| 1 | id | uuid | PK | Mã đề thi | x |
+| 2 | courseId | uuid | FK (courses) | Mã khóa học | x |
+| 3 | name | varchar(255) | | Tên đề thi | x |
+| 4 | passPercent | int | | Phần trăm điểm cần đạt để pass (%) | x |
+| 5 | retryAfterDays | int | | Số ngày chờ để làm lại | x |
+| 6 | questionCount | int | | Số câu hỏi lấy ngẫu nhiên mỗi lần thi | x |
+| 7 | duration | int | | Thời gian làm bài (phút) | x |
+| 8 | status | enum | DEFAULT draft | Trạng thái đề thi | x |
+| 9 | publisherId | uuid | FK (users) | Mã người duyệt | |
+| 10 | isDeleted | boolean | DEFAULT false | Trạng thái xóa | x |
+| 11 | createdAt | timestamp | DEFAULT now() | Thời gian tạo | x |
+| 12 | updatedAt | timestamp | AUTO UPDATE | Thời gian cập nhật | x |
+| 13 | deletedAt | timestamp | | Thời gian xóa | |
+| 14 | publishedAt | timestamp | | Thời gian duyệt xuất bản | |
+
+---
+
+## 4.2.25. Đặc tả bảng Câu hỏi đề thi (exam_questions)
+
+*Bảng 4-25: Đặc tả bảng Câu hỏi đề thi (exam_questions)*
+
+| 1. Mô tả chung: Lưu trữ câu hỏi trắc nghiệm của đề thi | | | | | |
+|---|---|---|---|---|---|
+| **2. Mô tả chi tiết** | | | | | |
+| **STT** | **Thuộc tính** | **Kiểu dữ liệu** | **Ràng buộc** | **Mô tả** | **Not null** |
+| 1 | id | uuid | PK | Mã câu hỏi | x |
+| 2 | examId | uuid | FK (exams) | Mã đề thi | x |
+| 3 | content | text | | Nội dung câu hỏi | x |
+| 4 | optionA | varchar(255) | | Đáp án A | x |
+| 5 | optionB | varchar(255) | | Đáp án B | x |
+| 6 | optionC | varchar(255) | | Đáp án C | x |
+| 7 | optionD | varchar(255) | | Đáp án D | x |
+| 8 | correctAnswer | varchar(255) | | Đáp án đúng (A/B/C/D) | x |
+| 9 | isDeleted | boolean | DEFAULT false | Trạng thái xóa | x |
+| 10 | createdAt | timestamp | DEFAULT now() | Thời gian tạo | x |
+| 11 | updatedAt | timestamp | AUTO UPDATE | Thời gian cập nhật | x |
+
+---
+
+## 4.2.26. Đặc tả bảng Lượt thi (exam_attempts)
+
+*Bảng 4-26: Đặc tả bảng Lượt thi (exam_attempts)*
+
+| 1. Mô tả chung: Lưu trữ thông tin mỗi lần học viên làm bài thi | | | | | |
+|---|---|---|---|---|---|
+| **2. Mô tả chi tiết** | | | | | |
+| **STT** | **Thuộc tính** | **Kiểu dữ liệu** | **Ràng buộc** | **Mô tả** | **Not null** |
+| 1 | id | uuid | PK | Mã lượt thi | x |
+| 2 | examId | uuid | FK (exams) | Mã đề thi | x |
+| 3 | userId | uuid | FK (users) | Mã học viên | x |
+| 4 | score | decimal(5,2) | | Điểm số (%) | |
+| 5 | isPassed | boolean | DEFAULT false | Đã đạt hay chưa | x |
+| 6 | isCompleted | boolean | DEFAULT false | Đã nộp bài chưa | x |
+| 7 | startedAt | timestamp | DEFAULT now() | Thời gian bắt đầu làm bài | x |
+| 8 | submittedAt | timestamp | | Thời gian nộp bài | |
+| 9 | createdAt | timestamp | DEFAULT now() | Thời gian tạo | x |
+| 10 | updatedAt | timestamp | AUTO UPDATE | Thời gian cập nhật | x |
+
+---
+
+## 4.2.27. Đặc tả bảng Câu trả lời lượt thi (exam_attempt_answers)
+
+*Bảng 4-27: Đặc tả bảng Câu trả lời lượt thi (exam_attempt_answers)*
+
+| 1. Mô tả chung: Lưu trữ câu trả lời của học viên trong từng lượt thi | | | | | |
+|---|---|---|---|---|---|
+| **2. Mô tả chi tiết** | | | | | |
+| **STT** | **Thuộc tính** | **Kiểu dữ liệu** | **Ràng buộc** | **Mô tả** | **Not null** |
+| 1 | id | uuid | PK | Mã câu trả lời | x |
+| 2 | attemptId | uuid | FK (exam_attempts) | Mã lượt thi | x |
+| 3 | questionId | uuid | FK (exam_questions) | Mã câu hỏi | x |
+| 4 | selectedAnswer | varchar(255) | | Đáp án học viên chọn (A/B/C/D hoặc null) | |
+| 5 | isCorrect | boolean | DEFAULT false | Đáp án có đúng không | x |
+| 6 | createdAt | timestamp | DEFAULT now() | Thời gian tạo | x |
+| 7 | updatedAt | timestamp | AUTO UPDATE | Thời gian cập nhật | x |
+
+---
+
 ## 4.3. Các kiểu liệt kê (Enums)
 
 ### 4.3.1. CourseStatus — Trạng thái khóa học
@@ -396,16 +536,23 @@
 | Giá trị | Mô tả |
 |---|---|
 | draft | Bản nháp |
-| pending | Chờ duyệt |
+| pending | Chờ duyệt (lần đầu) |
 | published | Đã xuất bản |
+| update | Đang gửi duyệt cập nhật |
+| need_update | Cần cập nhật (bị từ chối khi đã published) |
+| rejected | Bị từ chối (khi chưa từng published) |
+| outdated | Đã lỗi thời (xóa mềm) |
+| deleted | Đã xóa |
 
-### 4.3.2. LessonStatus — Trạng thái bài học / tài liệu
+### 4.3.2. LessonStatus — Trạng thái bài học / tài liệu / đề thi
 
 | Giá trị | Mô tả |
 |---|---|
 | draft | Bản nháp |
 | pending | Chờ duyệt |
 | published | Đã xuất bản |
+| outdated | Đã lỗi thời (bản cũ khi có cập nhật) |
+| deleted | Đã xóa |
 
 ### 4.3.3. MaterialType — Loại tài liệu
 
@@ -429,9 +576,19 @@
 
 | Giá trị | Mô tả |
 |---|---|
-| purchased | Đã mua |
+| pending | Chờ thanh toán |
+| purchased | Đã thanh toán thành công |
+| failed | Thanh toán thất bại |
 | refund_requested | Yêu cầu hoàn tiền |
 | refunded | Đã hoàn tiền |
+
+### 4.3.8. CourseApprovalStatus — Trạng thái phê duyệt khóa học
+
+| Giá trị | Mô tả |
+|---|---|
+| pending | Chờ xét duyệt |
+| approved | Đã duyệt |
+| rejected | Đã từ chối |
 
 ### 4.3.6. TransactionType — Loại giao dịch
 

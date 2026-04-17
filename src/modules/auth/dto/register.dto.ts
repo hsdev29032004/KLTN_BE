@@ -17,4 +17,12 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   role?: string;
+
+  @IsOptional()
+  @IsString()
+  bankNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  bankName?: string;
 }

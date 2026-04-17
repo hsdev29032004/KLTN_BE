@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '@/infras/prisma/prisma.service';
 
 @Injectable()
@@ -6,62 +6,79 @@ export class ConservationService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Lấy danh sách nhóm chat của giảng viên
-   * Query các khóa học của giảng viên => từ các khóa học đó query đến conversation của khóa học
+   * Lấy danh sách conversation của user qua bảng ConversationMember
    */
-  async getInstructorConversations(instructorId: string) {
-    // Kiểm tra giảng viên có tồn tại hay không
-    const instructor = await this.prisma.user.findUnique({
-      where: { id: instructorId },
-      select: { id: true, fullName: true, email: true },
-    });
-
-    if (!instructor) {
-      throw new NotFoundException('Giảng viên không tồn tại');
-    }
-
-    // Lấy tất cả khóa học của giảng viên
-    const instructorCourses = await this.prisma.course.findMany({
-      where: { userId: instructorId, isDeleted: false },
-      select: { id: true, name: true, slug: true, thumbnail: true },
-    });
-
-    if (instructorCourses.length === 0) {
-      return {
-        message: 'Giảng viên chưa có khóa học nào',
-        data: [],
-      };
-    }
-
-    // Lấy danh sách ID khóa học
-    const courseIds = instructorCourses.map((course) => course.id);
-
-    // Lấy tất cả conversation liên quan đến các khóa học của giảng viên
-    const conversations = await this.prisma.conversation.findMany({
-      where: {
-        courseId: { in: courseIds },
-        isDeleted: false,
-      },
+  async getMyConversations(userId: string) {
+    const conversations = await this.prisma.conversationMember.findMany({
+      where: { userId },
       select: {
-        id: true,
-        name: true,
-        courseId: true,
-        createdAt: true,
-        updatedAt: true,
+        isHost: true,
+        conversation: {
+          select: {
+            id: true,
+            name: true,
+            courseId: true,
+            createdAt: true,
+            updatedAt: true,
+            course: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                thumbnail: true,
+                user: {
+                  select: { id: true, fullName: true, avatar: true },
+                },
+              },
+            },
+            messages: {
+              where: { isDeleted: false },
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+              select: {
+                id: true,
+                content: true,
+                createdAt: true,
+                sender: {
+                  select: { id: true, fullName: true, avatar: true },
+                },
+              },
+            },
+            _count: {
+              select: { messages: { where: { isDeleted: false } }, members: true },
+            },
+          },
+        },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { conversation: { updatedAt: 'desc' } },
     });
 
-    return {
-      message: 'Lấy danh sách nhóm chat của giảng viên thành công',
-      data: conversations,
-    };
+    const data = conversations.map((m) => ({
+      ...m.conversation,
+      isHost: m.isHost,
+      lastMessage: m.conversation.messages[0] || null,
+      messages: undefined,
+    }));
+
+    return { message: 'Lấy danh sách hội thoại thành công', data };
   }
 
   /**
-   * Lấy chi tiết conversation kèm danh sách message
+   * Lấy chi tiết conversation kèm messages (phân trang)
    */
-  async getConversationDetails(conversationId: string) {
+  async getConversationDetail(userId: string, conversationId: string, query: Record<string, string>) {
+    // Kiểm tra user có phải member không
+    const member = await this.prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId, userId } },
+    });
+
+    if (!member) {
+      throw new ForbiddenException('Bạn không phải thành viên của hội thoại này');
+    }
+
+    const page = Math.max(1, parseInt(query.page) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(query.limit) || 50));
+
     const conversation = await this.prisma.conversation.findUnique({
       where: { id: conversationId, isDeleted: false },
       select: {
@@ -69,7 +86,6 @@ export class ConservationService {
         name: true,
         courseId: true,
         createdAt: true,
-        updatedAt: true,
         course: {
           select: {
             id: true,
@@ -77,151 +93,91 @@ export class ConservationService {
             slug: true,
             thumbnail: true,
             user: {
-              select: {
-                id: true,
-                fullName: true,
-                avatar: true,
-              },
+              select: { id: true, fullName: true, avatar: true },
             },
           },
         },
-        messages: {
-          where: { isDeleted: false },
+        members: {
           select: {
-            id: true,
-            content: true,
-            createdAt: true,
-            updatedAt: true,
-            sender: {
-              select: {
-                id: true,
-                fullName: true,
-                avatar: true,
-              },
-            },
-          },
-          orderBy: { createdAt: 'asc' },
-        },
-        _count: {
-          select: { messages: true },
-        },
-      },
-    });
-
-    if (!conversation) {
-      throw new NotFoundException('Conversation không tồn tại');
-    }
-
-    return {
-      message: 'Lấy chi tiết conversation thành công',
-      data: conversation,
-    };
-  }
-
-  /**
-   * Lấy danh sách conversation theo courseId
-   */
-  async getConversationByCourseId(courseId: string) {
-    const conversation = await this.prisma.conversation.findUnique({
-      where: { courseId },
-      select: {
-        id: true,
-        name: true,
-        courseId: true,
-        createdAt: true,
-        updatedAt: true,
-        course: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            thumbnail: true,
-          },
-        },
-        _count: {
-          select: { messages: true },
-        },
-      },
-    });
-
-    if (!conversation) {
-      throw new NotFoundException('Conversation không tồn tại');
-    }
-
-    return {
-      message: 'Lấy conversation theo khóa học thành công',
-      data: conversation,
-    };
-  }
-
-  /**
-   * Lấy tất cả conversation mà người dùng đang có
-   * Query các khóa học mà user đã mua => từ các khóa học đó query đến conversation
-   */
-  async getConversationsByUserId(userId: string) {
-    // Kiểm tra user có tồn tại hay không
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, fullName: true, email: true },
-    });
-
-    if (!user) {
-      throw new NotFoundException('Người dùng không tồn tại');
-    }
-
-    // Lấy tất cả khóa học mà user đã mua (qua UserCourse)
-    const userCourses = await this.prisma.userCourse.findMany({
-      where: { userId, course: { isDeleted: false } },
-      select: { courseId: true },
-    });
-
-    if (userCourses.length === 0) {
-      return {
-        message: 'Người dùng chưa mua khóa học nào',
-        data: [],
-      };
-    }
-
-    // Lấy danh sách courseId
-    const courseIds = userCourses.map((uc) => uc.courseId);
-
-    // Lấy tất cả conversation từ các khóa học mà user đã mua
-    const conversations = await this.prisma.conversation.findMany({
-      where: {
-        courseId: { in: courseIds },
-        isDeleted: false,
-      },
-      select: {
-        id: true,
-        name: true,
-        courseId: true,
-        createdAt: true,
-        updatedAt: true,
-        course: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            thumbnail: true,
+            userId: true,
+            isHost: true,
             user: {
-              select: {
-                id: true,
-                fullName: true,
-                avatar: true,
-              },
+              select: { id: true, fullName: true, avatar: true },
             },
           },
         },
-        _count: {
-          select: { messages: true },
-        },
       },
-      orderBy: { createdAt: 'desc' },
     });
 
+    if (!conversation) {
+      throw new NotFoundException('Hội thoại không tồn tại');
+    }
+
+    const [messages, totalMessages] = await Promise.all([
+      this.prisma.message.findMany({
+        where: { conversationId, isDeleted: false },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true,
+          content: true,
+          createdAt: true,
+          sender: {
+            select: { id: true, fullName: true, avatar: true },
+          },
+        },
+      }),
+      this.prisma.message.count({ where: { conversationId, isDeleted: false } }),
+    ]);
+
     return {
-      message: 'Lấy danh sách conversation của người dùng thành công',
-      data: conversations,
+      message: 'Lấy chi tiết hội thoại thành công',
+      data: {
+        ...conversation,
+        messages: messages.reverse(),
+      },
+      meta: {
+        total: totalMessages,
+        page,
+        limit,
+        totalPages: Math.ceil(totalMessages / limit),
+      },
     };
+  }
+
+  /**
+   * Gửi tin nhắn mới
+   */
+  async sendMessage(userId: string, conversationId: string, content: string) {
+    // Kiểm tra member
+    const member = await this.prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId, userId } },
+    });
+
+    if (!member) {
+      throw new ForbiddenException('Bạn không phải thành viên của hội thoại này');
+    }
+
+    const msg = await this.prisma.message.create({
+      data: { conversationId, senderId: userId, content },
+      select: {
+        id: true,
+        content: true,
+        createdAt: true,
+        conversationId: true,
+        sender: {
+          select: { id: true, fullName: true, avatar: true },
+        },
+      },
+    });
+
+    // Cập nhật updatedAt cho conversation
+    await this.prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    });
+
+    return { message: 'Gửi tin nhắn thành công', data: msg };
   }
 }

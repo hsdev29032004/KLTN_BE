@@ -1,15 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { CreateTopicDto } from './dto/create-topic.dto';
 import { UpdateTopicDto } from './dto/update-topic.dto';
-
+import { PrismaService } from '@/infras/prisma/prisma.service';
 @Injectable()
 export class TopicService {
+  constructor(private readonly prisma: PrismaService) { }
   create(createTopicDto: CreateTopicDto) {
     return 'This action adds a new topic';
   }
 
-  findAll() {
-    return `This action returns all topic`;
+  async findAll() {
+    const topics = await this.prisma.topic.findMany({
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+    return topics;
   }
 
   findOne(id: number) {

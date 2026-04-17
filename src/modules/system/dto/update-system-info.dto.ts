@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsInt, IsString, IsNumber } from 'class-validator';
+import { IsOptional, IsInt, IsString, IsNumber, Min, Max } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class UpdateSystemInfoDto {
   @ApiProperty({
@@ -8,7 +9,10 @@ export class UpdateSystemInfoDto {
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
+  @Min(0)
+  @Max(100)
   comissionRate?: number;
 
   @ApiProperty({
