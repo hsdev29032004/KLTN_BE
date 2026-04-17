@@ -1,4 +1,5 @@
-import { Controller, Get, Param, Query, Post, Body, Put, Delete, Req } from '@nestjs/common';
+import { Controller, Get, Param, Query, Post, Body, Put, Delete, Req, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CourseService } from './course.service';
 import { PublicAPI } from '@/common/decorators/public-api.decorator';
 import { User } from '@/common/decorators/user.decorator';
@@ -69,14 +70,16 @@ export class CourseController {
 
   @Roles('teacher')
   @Post('lesson/:lessonId/material')
-  createLessonMaterial(@User() user: IUser, @Param('lessonId') lessonId: string, @Body() dto: CreateLessonMaterialDto) {
-    return this.courseService.createLessonMaterial(user.id, lessonId, dto);
+  @UseInterceptors(FileInterceptor('file'))
+  createLessonMaterial(@User() user: IUser, @Param('lessonId') lessonId: string, @Body() dto: CreateLessonMaterialDto, @UploadedFile() file?: Express.Multer.File) {
+    return this.courseService.createLessonMaterial(user.id, lessonId, dto, file);
   }
 
   @Roles('teacher')
   @Put('material/:materialId')
-  updateLessonMaterial(@User() user: IUser, @Param('materialId') materialId: string, @Body() dto: UpdateLessonMaterialDto) {
-    return this.courseService.updateLessonMaterial(user.id, materialId, dto);
+  @UseInterceptors(FileInterceptor('file'))
+  updateLessonMaterial(@User() user: IUser, @Param('materialId') materialId: string, @Body() dto: UpdateLessonMaterialDto, @UploadedFile() file?: Express.Multer.File) {
+    return this.courseService.updateLessonMaterial(user.id, materialId, dto, file);
   }
 
   @Roles('teacher')
@@ -113,8 +116,9 @@ export class CourseController {
 
   @Roles('teacher')
   @Post()
-  createCourse(@User() user: IUser, @Body() dto: CreateCourseDto) {
-    return this.courseService.createCourse(user.id, dto);
+  @UseInterceptors(FileInterceptor('thumbnail'))
+  createCourse(@User() user: IUser, @Body() dto: CreateCourseDto, @UploadedFile() thumbnail?: Express.Multer.File) {
+    return this.courseService.createCourse(user.id, dto, thumbnail);
   }
 
   @Roles('teacher')
@@ -143,8 +147,9 @@ export class CourseController {
 
   @Roles('teacher')
   @Put(':courseId')
-  updateCourse(@User() user: IUser, @Param('courseId') courseId: string, @Body() dto: UpdateCourseDto) {
-    return this.courseService.updateCourse(user.id, courseId, dto);
+  @UseInterceptors(FileInterceptor('thumbnail'))
+  updateCourse(@User() user: IUser, @Param('courseId') courseId: string, @Body() dto: UpdateCourseDto, @UploadedFile() thumbnail?: Express.Multer.File) {
+    return this.courseService.updateCourse(user.id, courseId, dto, thumbnail);
   }
 
   @Roles('teacher')

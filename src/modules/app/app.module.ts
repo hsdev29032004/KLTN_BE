@@ -18,13 +18,13 @@ import { PrismaModule } from '@/infras/prisma/prisma.module';
 import { AuthMiddleware } from '@/core/middlewares/auth.middleware';
 import { StatModule } from '../stat/stat.module';
 import { ConservationModule } from '../conservation/conservation.module';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { InvoiceModule } from '../invoice/invoice.module';
 import { PaymentModule } from '../payment/payment.module';
 import { ExamModule } from '../exam/exam.module';
 import { UserModule } from '../user/user.module';
 import { CartModule } from '../cart/cart.module';
 import { TopicModule } from '../topic/topic.module';
-
 @Module({
   imports: [
     PrismaModule,
@@ -43,6 +43,7 @@ import { TopicModule } from '../topic/topic.module';
     UserModule,
     CartModule,
     TopicModule,
+    CloudinaryModule,
   ],
   controllers: [AppController],
   providers: [
