@@ -32,7 +32,7 @@ export class InvoiceController {
     return this.invoiceService.getMyInvoiceDetail(user.id, id);
   }
 
-  @Roles('admin')
+  @Roles('admin', 'teacher')
   @Get('payroll')
   getPayroll(@Query() query: QueryPayrollDto) {
     return this.invoiceService.getPayroll(query as Record<string, string>);
