@@ -466,7 +466,16 @@ export class CourseService {
       !!user.role?.name &&
       user.role.name !== ROLE_NAME.USER &&
       user.role.name !== ROLE_NAME.TEACHER;
-    const isPrivileged = isOwner || isSpecialRole;
+    let isPrivileged = isOwner || isSpecialRole;
+
+    // If not privileged by role/ownership, allow purchased users full access
+    if (!isPrivileged && user) {
+      const purchased = await this.prisma.userCourse.findFirst({
+        where: { courseId: courseBasic.id, userId: user.id },
+        select: { id: true },
+      });
+      if (purchased) isPrivileged = true;
+    }
 
     const lessonWhere = isPrivileged
       ? { isDeleted: false }
@@ -621,7 +630,8 @@ export class CourseService {
       where: {
         id: { in: courseIds },
         isDeleted: false,
-        status: { in: [CourseStatus.published, CourseStatus.update, CourseStatus.need_update] },
+        // Include `stopped` so purchased users keep access when a course is stopped
+        status: { in: [CourseStatus.published, CourseStatus.update, CourseStatus.need_update, CourseStatus.stopped] },
       },
       select: COURSE_LIST_SELECT as any,
       orderBy: { createdAt: 'desc' },
@@ -679,15 +689,21 @@ export class CourseService {
         CourseStatus.update,
         CourseStatus.need_update,
       ];
-      if (
-        !validLessonStatuses.includes(lessonMaterial.status) ||
-        !validLessonStatuses.includes(
-          lessonMaterial.lesson?.status as LessonStatus,
-        ) ||
-        !validCourseStatuses.includes(
-          lessonMaterial.lesson?.course?.status as CourseStatus,
-        )
-      ) {
+
+      const lessonMaterialStatusValid = validLessonStatuses.includes(lessonMaterial.status);
+      const lessonStatusValid = validLessonStatuses.includes(
+        lessonMaterial.lesson?.status as LessonStatus,
+      );
+      const courseStatusValid = validCourseStatuses.includes(
+        lessonMaterial.lesson?.course?.status as CourseStatus,
+      );
+
+      // Allow access if the course is stopped but the user has purchased it
+      const purchased = !!user &&
+        !!lessonMaterial.lesson?.course?.userCourses &&
+        lessonMaterial.lesson.course.userCourses.some((uc: any) => uc.userId === user.id);
+
+      if (!lessonMaterialStatusValid || !lessonStatusValid || (!courseStatusValid && !purchased)) {
         throw new NotFoundException('Tài liệu không tồn tại');
       }
     }
@@ -998,42 +1014,17 @@ export class CourseService {
     if (course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
 
-    await this.prisma.$transaction([
-      this.prisma.course.update({
-        where: { id: courseId },
-        data: {
-          status: CourseStatus.outdated,
-          isDeleted: true,
-          deletedAt: new Date(),
-        },
-      }),
-      this.prisma.lesson.updateMany({
-        where: { courseId, isDeleted: false },
-        data: {
-          status: LessonStatus.outdated,
-          isDeleted: true,
-          deletedAt: new Date(),
-        },
-      }),
-      this.prisma.lessonMaterial.updateMany({
-        where: { lesson: { courseId }, isDeleted: false },
-        data: {
-          status: LessonStatus.outdated,
-          isDeleted: true,
-          deletedAt: new Date(),
-        },
-      }),
-      this.prisma.exam.updateMany({
-        where: { courseId, isDeleted: false },
-        data: {
-          status: LessonStatus.outdated,
-          isDeleted: true,
-          deletedAt: new Date(),
-        },
-      }),
-    ]);
+    // Thay đổi hành vi: khi giảng viên muốn "ngừng kinh doanh" một khóa học,
+    // chỉ cập nhật trạng thái thành `stopped` để nó vẫn hiển thị với giảng viên
+    // (không xóa dữ liệu). Việc xóa vĩnh viễn vẫn sẽ không được thực hiện ở đây.
+    await this.prisma.course.update({
+      where: { id: courseId },
+      data: {
+        status: CourseStatus.stopped,
+      },
+    });
 
-    return { message: 'Xóa khóa học thành công' };
+    return { message: 'Cập nhật trạng thái khóa học thành "ngừng kinh doanh" thành công' };
   }
 
   // ── Delete Lesson ─────────────────────────────────────────────────────────
@@ -1285,6 +1276,33 @@ export class CourseService {
     ]);
 
     return { message: 'Từ chối khóa học thành công' };
+  }
+
+  // ── Teacher: Mở bán lại khóa học (chỉ cập nhật status) ───────────────────
+
+  async reopenCourse(userId: string, courseId: string) {
+    const course = await this.prisma.course.findFirst({
+      where: { id: courseId, isDeleted: false },
+    });
+    if (!course) throw new NotFoundException('Khóa học không tồn tại');
+    if (course.userId !== userId)
+      throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
+
+    // Chỉ cho phép mở bán nếu khóa học đang ở trạng thái `stopped`
+    if (course.status !== CourseStatus.stopped) {
+      throw new BadRequestException('Khóa học không ở trạng thái ngừng kinh doanh');
+    }
+
+    const now = new Date();
+    await this.prisma.course.update({
+      where: { id: courseId },
+      data: {
+        status: CourseStatus.published,
+        publishedAt: course.publishedAt ?? now,
+      },
+    });
+
+    return { message: 'Mở bán khóa học thành công' };
   }
 
   // ── Helper: kiểm tra có thay đổi chưa duyệt ─────────────────────────────

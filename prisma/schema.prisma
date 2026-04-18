@@ -473,6 +473,7 @@ enum CourseStatus {
   draft
   pending
   published
+  stopped
   deleted
   update
   outdated

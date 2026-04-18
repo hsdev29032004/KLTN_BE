@@ -127,6 +127,12 @@ export class CourseController {
     return this.courseService.submitForReview(user.id, courseId, dto.description);
   }
 
+  @Roles('teacher')
+  @Post(':courseId/reopen')
+  reopenCourse(@User() user: IUser, @Param('courseId') courseId: string) {
+    return this.courseService.reopenCourse(user.id, courseId);
+  }
+
   @Roles('admin')
   @Post(':courseId/publish')
   publishCourse(@User() user: IUser, @Param('courseId') courseId: string) {
