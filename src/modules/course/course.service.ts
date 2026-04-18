@@ -699,25 +699,9 @@ export class CourseService {
       throw new ForbiddenException('Bạn chưa mua khóa học này');
     }
 
-    // ── Kiểm tra đề thi chặn (exam gate) ─────────────────────────────────────
-    // Chỉ áp dụng cho user đã mua khóa học (không phải owner/admin)
-    if (user && !isPrivileged) {
-      const purchased = lessonMaterial.lesson?.course?.userCourses?.some(
-        (uc: any) => uc.userId === user.id,
-      );
-      if (purchased) {
-        const blocked = await this.isBlockedByExam(
-          lessonMaterial.lesson.courseId,
-          lessonMaterial.lesson.createdAt,
-          user.id,
-        );
-        if (blocked) {
-          throw new ForbiddenException(
-            'Bạn cần hoàn thành đề thi trước khi xem tài liệu này',
-          );
-        }
-      }
-    }
+    // Previously exam-based gating was enforced here. That restriction has
+    // been removed so purchased users can access full materials without
+    // passing exams.
 
     // ── Trả về response theo loại tài liệu ───────────────────────────────────
 
