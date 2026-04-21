@@ -3,6 +3,8 @@ import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { PublicAPI } from '@/common/decorators/public-api.decorator';
 import { User } from '@/common/decorators/user.decorator';
 import { SkipPermission } from '@/common/decorators/authenticated.decorator';
@@ -10,11 +12,14 @@ import type { IUser } from '@/shared/types/user.type';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
   @PublicAPI()
   @Post('login')
-  async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
+  async login(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const result = await this.authService.login(loginDto);
 
     res.cookie('access_token', result.accessToken, {
@@ -44,6 +49,22 @@ export class AuthController {
     return this.authService.register(registerDto);
   }
 
+  @PublicAPI()
+  @Post('forgot-password')
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.requestPasswordReset(dto.email);
+  }
+
+  @PublicAPI()
+  @Post('reset-password')
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword({
+      email: dto.email,
+      code: dto.code,
+      newPassword: dto.newPassword,
+    });
+  }
+
   @SkipPermission()
   @Get('me')
   async fetchMe(@User() user: IUser) {
@@ -68,7 +89,10 @@ export class AuthController {
 
   @PublicAPI()
   @Post('refresh-token')
-  async refreshToken(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  async refreshToken(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const refreshToken = req.cookies?.refresh_token;
 
     const result = await this.authService.refreshToken(refreshToken);

@@ -1,17 +1,23 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import { CacheService } from '@/infras/cache/cache.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { PrismaService } from '@/infras/prisma/prisma.service';
+import { MailService } from '@/infras/mail/mail.service';
 import { buildJwtPayload } from '@/shared/utils/auth.util';
 import { ROLE_NAME } from '@/shared/constants/auth.constant';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private jwtService: JwtService,
     private prisma: PrismaService,
-  ) { }
+    private mailService: MailService,
+    private cacheService: CacheService,
+  ) {}
 
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
@@ -96,7 +102,10 @@ export class AuthService {
     const bankNumber = registerDto.bankNumber ?? null;
     const bankName = registerDto.bankName ?? null;
     // normalize role to lowercase string
-    const role = typeof registerDto.role === 'string' ? registerDto.role.toLowerCase() : undefined;
+    const role =
+      typeof registerDto.role === 'string'
+        ? registerDto.role.toLowerCase()
+        : undefined;
 
     // Kiểm tra email đã tồn tại chưa
     const existed = await this.prisma.user.findUnique({ where: { email } });
@@ -109,10 +118,15 @@ export class AuthService {
     }
 
     // Hash password
-    const hash = await bcrypt.hash(password, parseInt(process.env.BCRYPT_SALT as string));
+    const hash = await bcrypt.hash(
+      password,
+      parseInt(process.env.BCRYPT_SALT as string),
+    );
 
     // Lấy role mặc định (user)
-    const defaultRole = await this.prisma.role.findFirst({ where: { name: ROLE_NAME.USER } });
+    const defaultRole = await this.prisma.role.findFirst({
+      where: { name: ROLE_NAME.USER },
+    });
     if (!defaultRole) {
       throw new UnauthorizedException('Default role not found');
     }
@@ -120,8 +134,11 @@ export class AuthService {
     // Nếu client gửi role là 'teacher' thì gán role tương ứng, ngược lại dùng 'user'
     let assignedRole = defaultRole;
     if (role && role === ROLE_NAME.TEACHER.toLowerCase()) {
-      const teacherRole = await this.prisma.role.findFirst({ where: { name: ROLE_NAME.TEACHER } });
-      if (!teacherRole) throw new UnauthorizedException('Requested role not found');
+      const teacherRole = await this.prisma.role.findFirst({
+        where: { name: ROLE_NAME.TEACHER },
+      });
+      if (!teacherRole)
+        throw new UnauthorizedException('Requested role not found');
       assignedRole = teacherRole;
     }
 
@@ -152,6 +169,73 @@ export class AuthService {
     };
   }
 
+  // Request a password reset code sent to the user's email
+  async requestPasswordReset(email: string) {
+    const normEmail = (email || '').toString().trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({
+      where: { email: normEmail },
+    });
+    if (!user || user.isDeleted) {
+      throw new UnauthorizedException('Người dùng không tồn tại');
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const ttl = parseInt(process.env.PWD_RESET_TTL || '600'); // seconds
+    const key = `pwd_reset:${normEmail}`;
+    await this.cacheService.set(key, code, ttl);
+
+    const subject = 'Mã đặt lại mật khẩu';
+    const text = `Mã đặt lại mật khẩu của bạn là: ${code}. Mã sẽ hết hạn sau ${ttl} giây.`;
+
+    // Log code in non-production to help debugging tests
+    if (process.env.NODE_ENV !== 'production') {
+      this.logger.log(
+        `Password reset code for ${normEmail}: ${code} (ttl=${ttl}s)`,
+      );
+    }
+
+    await this.mailService.sendMail(normEmail, subject, text);
+
+    return { message: 'Mã xác thực đã được gửi tới email nếu tồn tại' };
+  }
+
+  // Confirm code + update password
+  async resetPassword(payload: {
+    email: string;
+    code: string;
+    newPassword: string;
+  }) {
+    const { email, code, newPassword } = payload;
+    const normEmail = (email || '').toString().trim().toLowerCase();
+    const submittedCode = (code || '').toString().trim();
+    const key = `pwd_reset:${normEmail}`;
+    const cached: string | undefined = await this.cacheService.get(key);
+
+    if (process.env.NODE_ENV !== 'production') {
+      this.logger.log(
+        `Verifying reset code for ${normEmail}: submitted=${submittedCode}, cached=${cached}`,
+      );
+    }
+
+    if (!cached || cached !== submittedCode) {
+      throw new UnauthorizedException('Mã không hợp lệ hoặc đã hết hạn');
+    }
+
+    const hash = await bcrypt.hash(
+      newPassword,
+      parseInt(process.env.BCRYPT_SALT as string),
+    );
+
+    await this.prisma.user.update({
+      where: { email: normEmail },
+      data: { password: hash },
+    });
+
+    await this.cacheService.del(key);
+
+    return { message: 'Cập nhật mật khẩu thành công' };
+  }
+
   async fetchMe(accessToken: string) {
     if (!accessToken) {
       throw new UnauthorizedException({
@@ -174,22 +258,22 @@ export class AuthService {
     // Query ban nếu có
     const ban = userData.banId
       ? await this.prisma.ban.findUnique({
-        where: { id: userData.banId },
-      })
+          where: { id: userData.banId },
+        })
       : null;
 
     // Query role với permissions
     const role = userData.roleId
       ? await this.prisma.role.findUnique({
-        where: { id: userData.roleId },
-        include: {
-          rolePermissions: {
-            include: {
-              permission: true,
+          where: { id: userData.roleId },
+          include: {
+            rolePermissions: {
+              include: {
+                permission: true,
+              },
             },
           },
-        },
-      })
+        })
       : null;
 
     return {
@@ -281,10 +365,12 @@ export class AuthService {
           name: user.role.name,
         },
       },
-      ban: user.ban ? {
-        id: user.ban.id,
-        reason: user.ban.reason,
-      } : null,
+      ban: user.ban
+        ? {
+            id: user.ban.id,
+            reason: user.ban.reason,
+          }
+        : null,
     };
   }
 
