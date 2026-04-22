@@ -25,6 +25,18 @@ export class UpdateProfileDto {
   @IsString()
   @MaxLength(1000)
   introduce?: string;
+
+  @ApiPropertyOptional({ description: 'Tên ngân hàng' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  bankName?: string;
+
+  @ApiPropertyOptional({ description: 'Số tài khoản ngân hàng' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  bankNumber?: string;
 }
 
 export class AdminUpdateUserDto {
@@ -55,4 +67,16 @@ export class AdminUpdateUserDto {
   @IsOptional()
   @IsNumber()
   availableAmount?: number;
+
+  @ApiPropertyOptional({ description: 'Tên ngân hàng' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  bankName?: string;
+
+  @ApiPropertyOptional({ description: 'Số tài khoản ngân hàng' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  bankNumber?: string;
 }

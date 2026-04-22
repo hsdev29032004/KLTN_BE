@@ -31,6 +31,8 @@ const USER_SELECT = {
   timeBan: true,
   timeUnBan: true,
   availableAmount: true,
+  bankName: true,
+  bankNumber: true,
   createdAt: true,
   updatedAt: true,
   role: { select: { id: true, name: true } },
@@ -388,6 +390,8 @@ export class UserService {
     }
     if (dto.avatar !== undefined) data.avatar = dto.avatar;
     if (dto.introduce !== undefined) data.introduce = dto.introduce;
+    if (dto.bankName !== undefined) data.bankName = dto.bankName;
+    if (dto.bankNumber !== undefined) data.bankNumber = dto.bankNumber;
 
     const updated = await this.prisma.user.update({
       where: { id: userId },
@@ -464,6 +468,8 @@ export class UserService {
       }
       data.availableAmount = dto.availableAmount;
     }
+    if (dto.bankName !== undefined) data.bankName = dto.bankName;
+    if (dto.bankNumber !== undefined) data.bankNumber = dto.bankNumber;
 
     const updated = await this.prisma.user.update({
       where: { id: userId },
