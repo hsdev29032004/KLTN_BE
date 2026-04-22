@@ -54,6 +54,7 @@ pids
 
 # yarn cache
 .yarn/cache/*
+.yarn/install-state.gz
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
