@@ -18,7 +18,13 @@ import { CreateLessonMaterialDto } from './dto/create-lesson-material.dto';
 import { UpdateLessonMaterialDto } from './dto/update-lesson-material.dto';
 import type { MaterialType } from '@prisma/client';
 import { CourseStatus, LessonStatus } from '@prisma/client';
-import { VNPay, ignoreLogger, VnpLocale, HashAlgorithm, dateFormat } from 'vnpay';
+import {
+  VNPay,
+  ignoreLogger,
+  VnpLocale,
+  HashAlgorithm,
+  dateFormat,
+} from 'vnpay';
 import { CloudinaryService } from '@/modules/cloudinary/cloudinary.service';
 
 const COURSE_LIST_SELECT = {
@@ -53,7 +59,23 @@ const COURSE_LIST_SELECT = {
 
 @Injectable()
 export class CourseService {
-  constructor(private readonly prisma: PrismaService, private readonly cloudinary: CloudinaryService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudinary: CloudinaryService,
+  ) {}
+
+  // Normalize boolean-like inputs (multipart/form-data sends values as strings)
+  private normalizeBoolean(value: any): boolean | undefined {
+    if (value === undefined || value === null) return undefined;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    if (typeof value === 'string') {
+      const v = value.trim().toLowerCase();
+      if (v === 'true' || v === '1') return true;
+      if (v === 'false' || v === '0') return false;
+    }
+    return undefined;
+  }
 
   private isImageType(type?: string) {
     if (!type) return false;
@@ -65,7 +87,13 @@ export class CourseService {
     const courses = await this.prisma.course.findMany({
       where: {
         isDeleted: false,
-        status: { in: [CourseStatus.published, CourseStatus.update, CourseStatus.need_update] },
+        status: {
+          in: [
+            CourseStatus.published,
+            CourseStatus.update,
+            CourseStatus.need_update,
+          ],
+        },
       },
       select: COURSE_LIST_SELECT,
       orderBy: { createdAt: 'desc' },
@@ -94,16 +122,30 @@ export class CourseService {
     } = dto;
 
     // Coerce numeric-like query params to numbers because query strings may remain as strings
-    const minPriceNum = minPrice !== undefined && minPrice !== null ? Number(minPrice) : undefined;
-    const maxPriceNum = maxPrice !== undefined && maxPrice !== null ? Number(maxPrice) : undefined;
-    const minStarNum = minStar !== undefined && minStar !== null ? Number(minStar) : undefined;
-    const maxStarNum = maxStar !== undefined && maxStar !== null ? Number(maxStar) : undefined;
+    const minPriceNum =
+      minPrice !== undefined && minPrice !== null
+        ? Number(minPrice)
+        : undefined;
+    const maxPriceNum =
+      maxPrice !== undefined && maxPrice !== null
+        ? Number(maxPrice)
+        : undefined;
+    const minStarNum =
+      minStar !== undefined && minStar !== null ? Number(minStar) : undefined;
+    const maxStarNum =
+      maxStar !== undefined && maxStar !== null ? Number(maxStar) : undefined;
     const pageNum = Math.max(1, Number(page) || 1);
     const limitNum = Math.max(1, Math.min(100, Number(limit) || 20));
 
     const where: any = {
       isDeleted: false,
-      status: { in: [CourseStatus.published, CourseStatus.update, CourseStatus.need_update] },
+      status: {
+        in: [
+          CourseStatus.published,
+          CourseStatus.update,
+          CourseStatus.need_update,
+        ],
+      },
     };
 
     if (name) {
@@ -166,12 +208,7 @@ export class CourseService {
   }
 
   async findAllForAdmin(query: Record<string, string>) {
-    const {
-      status,
-      userId,
-      page = '1',
-      limit = '20',
-    } = query;
+    const { status, userId, page = '1', limit = '20' } = query;
 
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(limit) || 20));
@@ -303,9 +340,10 @@ export class CourseService {
     expireAt.setMinutes(expireAt.getMinutes() + 30);
 
     // Normalize IP
-    const normalizedIp = ipAddr === '::1' || ipAddr === '::ffff:127.0.0.1' || !ipAddr
-      ? '127.0.0.1'
-      : ipAddr.replace(/^::ffff:/, '');
+    const normalizedIp =
+      ipAddr === '::1' || ipAddr === '::ffff:127.0.0.1' || !ipAddr
+        ? '127.0.0.1'
+        : ipAddr.replace(/^::ffff:/, '');
 
     const paymentUrl = vnpay.buildPaymentUrl({
       vnp_Amount: total,
@@ -426,7 +464,13 @@ export class CourseService {
       where: {
         id: { in: ids },
         isDeleted: false,
-        status: { in: [CourseStatus.published, CourseStatus.update, CourseStatus.need_update] },
+        status: {
+          in: [
+            CourseStatus.published,
+            CourseStatus.update,
+            CourseStatus.need_update,
+          ],
+        },
       },
       select: COURSE_LIST_SELECT,
     });
@@ -480,16 +524,16 @@ export class CourseService {
     const lessonWhere = isPrivileged
       ? { isDeleted: false }
       : {
-        isDeleted: false,
-        status: { in: [LessonStatus.published, LessonStatus.outdated] },
-      };
+          isDeleted: false,
+          status: { in: [LessonStatus.published, LessonStatus.outdated] },
+        };
 
     const materialWhere = isPrivileged
       ? { isDeleted: false }
       : {
-        isDeleted: false,
-        status: { in: [LessonStatus.published, LessonStatus.outdated] },
-      };
+          isDeleted: false,
+          status: { in: [LessonStatus.published, LessonStatus.outdated] },
+        };
 
     const course: any = await this.prisma.course.findUnique({
       where: { id: courseBasic.id },
@@ -581,7 +625,10 @@ export class CourseService {
         exams: {
           where: isPrivileged
             ? { isDeleted: false }
-            : { isDeleted: false, status: { in: [LessonStatus.published, LessonStatus.outdated] } },
+            : {
+                isDeleted: false,
+                status: { in: [LessonStatus.published, LessonStatus.outdated] },
+              },
           select: {
             id: true,
             name: true,
@@ -631,7 +678,14 @@ export class CourseService {
         id: { in: courseIds },
         isDeleted: false,
         // Include `stopped` so purchased users keep access when a course is stopped
-        status: { in: [CourseStatus.published, CourseStatus.update, CourseStatus.need_update, CourseStatus.stopped] },
+        status: {
+          in: [
+            CourseStatus.published,
+            CourseStatus.update,
+            CourseStatus.need_update,
+            CourseStatus.stopped,
+          ],
+        },
       },
       select: COURSE_LIST_SELECT as any,
       orderBy: { createdAt: 'desc' },
@@ -690,7 +744,9 @@ export class CourseService {
         CourseStatus.need_update,
       ];
 
-      const lessonMaterialStatusValid = validLessonStatuses.includes(lessonMaterial.status);
+      const lessonMaterialStatusValid = validLessonStatuses.includes(
+        lessonMaterial.status,
+      );
       const lessonStatusValid = validLessonStatuses.includes(
         lessonMaterial.lesson?.status as LessonStatus,
       );
@@ -699,11 +755,18 @@ export class CourseService {
       );
 
       // Allow access if the course is stopped but the user has purchased it
-      const purchased = !!user &&
+      const purchased =
+        !!user &&
         !!lessonMaterial.lesson?.course?.userCourses &&
-        lessonMaterial.lesson.course.userCourses.some((uc: any) => uc.userId === user.id);
+        lessonMaterial.lesson.course.userCourses.some(
+          (uc: any) => uc.userId === user.id,
+        );
 
-      if (!lessonMaterialStatusValid || !lessonStatusValid || (!courseStatusValid && !purchased)) {
+      if (
+        !lessonMaterialStatusValid ||
+        !lessonStatusValid ||
+        (!courseStatusValid && !purchased)
+      ) {
         throw new NotFoundException('Tài liệu không tồn tại');
       }
     }
@@ -734,7 +797,11 @@ export class CourseService {
 
   // ── Create Course ─────────────────────────────────────────────────────────
 
-  async createCourse(userId: string, dto: CreateCourseDto, thumbnailFile?: Express.Multer.File) {
+  async createCourse(
+    userId: string,
+    dto: CreateCourseDto,
+    thumbnailFile?: Express.Multer.File,
+  ) {
     let slug = generateSlug(dto.name);
 
     // Đảm bảo slug unique
@@ -750,10 +817,14 @@ export class CourseService {
     let priceNum: number | undefined = undefined;
     if (dto.price !== undefined && dto.price !== null) {
       priceNum = Number(dto.price as any);
-      if (Number.isNaN(priceNum)) throw new BadRequestException('Giá không hợp lệ');
+      if (Number.isNaN(priceNum))
+        throw new BadRequestException('Giá không hợp lệ');
     }
     if (thumbnailFile) {
-      const uploaded = await this.cloudinary.uploadFile(thumbnailFile, 'courses');
+      const uploaded = await this.cloudinary.uploadFile(
+        thumbnailFile,
+        'courses',
+      );
       thumbnailUrl = uploaded.url;
     }
 
@@ -786,8 +857,13 @@ export class CourseService {
       throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
 
     // Không cho phép thao tác khi khóa học đang chờ duyệt hoặc đang chờ cập nhật
-    if (course.status === CourseStatus.pending || course.status === CourseStatus.update) {
-      throw new BadRequestException('Không thể thêm bài học khi khóa học đang chờ phê duyệt');
+    if (
+      course.status === CourseStatus.pending ||
+      course.status === CourseStatus.update
+    ) {
+      throw new BadRequestException(
+        'Không thể thêm bài học khi khóa học đang chờ phê duyệt',
+      );
     }
 
     const lesson = await this.prisma.lesson.create({
@@ -818,8 +894,13 @@ export class CourseService {
       throw new ForbiddenException('Bạn không có quyền thao tác bài học này');
 
     // Không cho phép thao tác khi khóa học đang chờ duyệt hoặc đang chờ cập nhật
-    if (lesson.course.status === CourseStatus.pending || lesson.course.status === CourseStatus.update) {
-      throw new BadRequestException('Không thể thêm tài liệu khi khóa học đang chờ phê duyệt');
+    if (
+      lesson.course.status === CourseStatus.pending ||
+      lesson.course.status === CourseStatus.update
+    ) {
+      throw new BadRequestException(
+        'Không thể thêm tài liệu khi khóa học đang chờ phê duyệt',
+      );
     }
 
     // If material is an image and a file was uploaded, use Cloudinary
@@ -833,6 +914,8 @@ export class CourseService {
       throw new BadRequestException('Trường "url" là bắt buộc cho tài liệu');
     }
 
+    const isPreviewFlag = this.normalizeBoolean((dto as any).isPreview);
+
     const material = await this.prisma.lessonMaterial.create({
       data: {
         name: dto.name,
@@ -840,6 +923,7 @@ export class CourseService {
         type: dto.type as MaterialType,
         lessonId,
         status: LessonStatus.draft,
+        isPreview: isPreviewFlag !== undefined ? isPreviewFlag : false,
       },
     });
 
@@ -848,7 +932,12 @@ export class CourseService {
 
   // ── Update Course ─────────────────────────────────────────────────────────
 
-  async updateCourse(userId: string, courseId: string, dto: UpdateCourseDto, thumbnailFile?: Express.Multer.File) {
+  async updateCourse(
+    userId: string,
+    courseId: string,
+    dto: UpdateCourseDto,
+    thumbnailFile?: Express.Multer.File,
+  ) {
     const course = await this.prisma.course.findFirst({
       where: { id: courseId, isDeleted: false },
     });
@@ -866,7 +955,10 @@ export class CourseService {
     }
 
     if (thumbnailFile) {
-      const uploaded = await this.cloudinary.uploadFile(thumbnailFile, 'courses');
+      const uploaded = await this.cloudinary.uploadFile(
+        thumbnailFile,
+        'courses',
+      );
       data.thumbnail = uploaded.url;
     }
 
@@ -902,9 +994,14 @@ export class CourseService {
       throw new ForbiddenException('Bạn không có quyền thao tác bài học này');
 
     // Không cho phép chỉnh sửa khi khóa học đang chờ duyệt hoặc đang chờ cập nhật
-    const courseStatus = (lesson.course.status as CourseStatus);
-    if (courseStatus === CourseStatus.pending || courseStatus === CourseStatus.update) {
-      throw new BadRequestException('Không thể chỉnh sửa bài học khi khóa học đang chờ phê duyệt');
+    const courseStatus = lesson.course.status as CourseStatus;
+    if (
+      courseStatus === CourseStatus.pending ||
+      courseStatus === CourseStatus.update
+    ) {
+      throw new BadRequestException(
+        'Không thể chỉnh sửa bài học khi khóa học đang chờ phê duyệt',
+      );
     }
 
     const updated = await this.prisma.lesson.update({
@@ -952,6 +1049,10 @@ export class CourseService {
       const updateData: any = {};
       if (dto.name !== undefined) updateData.name = dto.name;
       if (dto.type !== undefined) updateData.type = dto.type as MaterialType;
+      if (dto.isPreview !== undefined) {
+        const parsed = this.normalizeBoolean((dto as any).isPreview);
+        if (parsed !== undefined) updateData.isPreview = parsed;
+      }
 
       // If updating to an image and file provided, upload
       if (this.isImageType(dto.type as string) && file) {
@@ -977,6 +1078,8 @@ export class CourseService {
         newUrl = uploaded.url;
       }
 
+      const previewFlag = this.normalizeBoolean((dto as any).isPreview);
+
       const [, newMaterial] = await this.prisma.$transaction([
         this.prisma.lessonMaterial.update({
           where: { id: materialId },
@@ -988,7 +1091,8 @@ export class CourseService {
             url: newUrl,
             type: (dto.type as MaterialType) ?? material.type,
             lessonId: material.lessonId,
-            isPreview: material.isPreview,
+            isPreview:
+              previewFlag !== undefined ? previewFlag : material.isPreview,
             status: LessonStatus.draft,
           },
         }),
@@ -1001,7 +1105,9 @@ export class CourseService {
     }
 
     // outdated / deleted → không cho sửa
-    throw new BadRequestException('Tài liệu đang ở trạng thái không thể chỉnh sửa');
+    throw new BadRequestException(
+      'Tài liệu đang ở trạng thái không thể chỉnh sửa',
+    );
   }
 
   // ── Delete Course ─────────────────────────────────────────────────────────
@@ -1024,7 +1130,10 @@ export class CourseService {
       },
     });
 
-    return { message: 'Cập nhật trạng thái khóa học thành "ngừng kinh doanh" thành công' };
+    return {
+      message:
+        'Cập nhật trạng thái khóa học thành "ngừng kinh doanh" thành công',
+    };
   }
 
   // ── Delete Lesson ─────────────────────────────────────────────────────────
@@ -1039,8 +1148,13 @@ export class CourseService {
       throw new ForbiddenException('Bạn không có quyền thao tác bài học này');
 
     // Không cho phép xóa khi khóa học đang chờ duyệt hoặc đang chờ cập nhật
-    if (lesson.course.status === CourseStatus.pending || lesson.course.status === CourseStatus.update) {
-      throw new BadRequestException('Không thể xóa bài học khi khóa học đang chờ phê duyệt');
+    if (
+      lesson.course.status === CourseStatus.pending ||
+      lesson.course.status === CourseStatus.update
+    ) {
+      throw new BadRequestException(
+        'Không thể xóa bài học khi khóa học đang chờ phê duyệt',
+      );
     }
 
     if (lesson.status === LessonStatus.draft) {
@@ -1057,7 +1171,11 @@ export class CourseService {
           data: { status: LessonStatus.outdated },
         }),
         this.prisma.lessonMaterial.updateMany({
-          where: { lessonId, isDeleted: false, status: { not: LessonStatus.deleted } },
+          where: {
+            lessonId,
+            isDeleted: false,
+            status: { not: LessonStatus.deleted },
+          },
           data: { status: LessonStatus.outdated },
         }),
       ]);
@@ -1072,7 +1190,9 @@ export class CourseService {
     const material = await this.prisma.lessonMaterial.findFirst({
       where: { id: materialId, isDeleted: false },
       include: {
-        lesson: { include: { course: { select: { userId: true, status: true } } } },
+        lesson: {
+          include: { course: { select: { userId: true, status: true } } },
+        },
       },
     });
     if (!material) throw new NotFoundException('Tài liệu không tồn tại');
@@ -1080,8 +1200,13 @@ export class CourseService {
       throw new ForbiddenException('Bạn không có quyền thao tác tài liệu này');
 
     // Không cho phép xóa khi khóa học đang chờ duyệt hoặc đang chờ cập nhật
-    if (material.lesson.course.status === CourseStatus.pending || material.lesson.course.status === CourseStatus.update) {
-      throw new BadRequestException('Không thể xóa tài liệu khi khóa học đang chờ phê duyệt');
+    if (
+      material.lesson.course.status === CourseStatus.pending ||
+      material.lesson.course.status === CourseStatus.update
+    ) {
+      throw new BadRequestException(
+        'Không thể xóa tài liệu khi khóa học đang chờ phê duyệt',
+      );
     }
 
     if (material.status === LessonStatus.draft) {
@@ -1112,9 +1237,14 @@ export class CourseService {
 
     if (isFirstPublish) {
       // Chưa từng published → pending
-      const validStatuses: CourseStatus[] = [CourseStatus.draft, CourseStatus.rejected];
+      const validStatuses: CourseStatus[] = [
+        CourseStatus.draft,
+        CourseStatus.rejected,
+      ];
       if (!validStatuses.includes(course.status)) {
-        throw new BadRequestException('Khóa học đang ở trạng thái không thể gửi xét duyệt');
+        throw new BadRequestException(
+          'Khóa học đang ở trạng thái không thể gửi xét duyệt',
+        );
       }
 
       await this.prisma.$transaction([
@@ -1131,9 +1261,14 @@ export class CourseService {
     }
 
     // Đã từng published → update
-    const validUpdateStatuses: CourseStatus[] = [CourseStatus.published, CourseStatus.need_update];
+    const validUpdateStatuses: CourseStatus[] = [
+      CourseStatus.published,
+      CourseStatus.need_update,
+    ];
     if (!validUpdateStatuses.includes(course.status)) {
-      throw new BadRequestException('Khóa học đang ở trạng thái không thể gửi xét duyệt');
+      throw new BadRequestException(
+        'Khóa học đang ở trạng thái không thể gửi xét duyệt',
+      );
     }
 
     // Kiểm tra có thay đổi (draft hoặc outdated items)
@@ -1187,7 +1322,11 @@ export class CourseService {
       // Lessons: draft → published
       await tx.lesson.updateMany({
         where: { courseId, status: LessonStatus.draft, isDeleted: false },
-        data: { status: LessonStatus.published, publisherId: adminId, publishedAt: now },
+        data: {
+          status: LessonStatus.published,
+          publisherId: adminId,
+          publishedAt: now,
+        },
       });
 
       // Lessons: outdated → deleted
@@ -1198,20 +1337,36 @@ export class CourseService {
 
       // Materials: draft → published
       await tx.lessonMaterial.updateMany({
-        where: { lesson: { courseId }, status: LessonStatus.draft, isDeleted: false },
-        data: { status: LessonStatus.published, publisherId: adminId, publishedAt: now },
+        where: {
+          lesson: { courseId },
+          status: LessonStatus.draft,
+          isDeleted: false,
+        },
+        data: {
+          status: LessonStatus.published,
+          publisherId: adminId,
+          publishedAt: now,
+        },
       });
 
       // Materials: outdated → deleted
       await tx.lessonMaterial.updateMany({
-        where: { lesson: { courseId }, status: LessonStatus.outdated, isDeleted: false },
+        where: {
+          lesson: { courseId },
+          status: LessonStatus.outdated,
+          isDeleted: false,
+        },
         data: { status: LessonStatus.deleted, isDeleted: true, deletedAt: now },
       });
 
       // Exams: draft → published
       await tx.exam.updateMany({
         where: { courseId, status: LessonStatus.draft, isDeleted: false },
-        data: { status: LessonStatus.published, publisherId: adminId, publishedAt: now },
+        data: {
+          status: LessonStatus.published,
+          publisherId: adminId,
+          publishedAt: now,
+        },
       });
 
       // Exams: outdated → deleted
@@ -1260,9 +1415,10 @@ export class CourseService {
     }
 
     // pending → rejected, update → need_update
-    const newStatus = course.status === CourseStatus.pending
-      ? CourseStatus.rejected
-      : CourseStatus.need_update;
+    const newStatus =
+      course.status === CourseStatus.pending
+        ? CourseStatus.rejected
+        : CourseStatus.need_update;
 
     await this.prisma.$transaction([
       this.prisma.course.update({
@@ -1290,7 +1446,9 @@ export class CourseService {
 
     // Chỉ cho phép mở bán nếu khóa học đang ở trạng thái `stopped`
     if (course.status !== CourseStatus.stopped) {
-      throw new BadRequestException('Khóa học không ở trạng thái ngừng kinh doanh');
+      throw new BadRequestException(
+        'Khóa học không ở trạng thái ngừng kinh doanh',
+      );
     }
 
     const now = new Date();
@@ -1308,15 +1466,50 @@ export class CourseService {
   // ── Helper: kiểm tra có thay đổi chưa duyệt ─────────────────────────────
 
   private async hasUnpublishedChanges(courseId: string): Promise<boolean> {
-    const [draftLessons, outdatedLessons, draftMaterials, outdatedMaterials, draftExams, outdatedExams] = await Promise.all([
-      this.prisma.lesson.count({ where: { courseId, status: LessonStatus.draft, isDeleted: false } }),
-      this.prisma.lesson.count({ where: { courseId, status: LessonStatus.outdated, isDeleted: false } }),
-      this.prisma.lessonMaterial.count({ where: { lesson: { courseId }, status: LessonStatus.draft, isDeleted: false } }),
-      this.prisma.lessonMaterial.count({ where: { lesson: { courseId }, status: LessonStatus.outdated, isDeleted: false } }),
-      this.prisma.exam.count({ where: { courseId, status: LessonStatus.draft, isDeleted: false } }),
-      this.prisma.exam.count({ where: { courseId, status: LessonStatus.outdated, isDeleted: false } }),
+    const [
+      draftLessons,
+      outdatedLessons,
+      draftMaterials,
+      outdatedMaterials,
+      draftExams,
+      outdatedExams,
+    ] = await Promise.all([
+      this.prisma.lesson.count({
+        where: { courseId, status: LessonStatus.draft, isDeleted: false },
+      }),
+      this.prisma.lesson.count({
+        where: { courseId, status: LessonStatus.outdated, isDeleted: false },
+      }),
+      this.prisma.lessonMaterial.count({
+        where: {
+          lesson: { courseId },
+          status: LessonStatus.draft,
+          isDeleted: false,
+        },
+      }),
+      this.prisma.lessonMaterial.count({
+        where: {
+          lesson: { courseId },
+          status: LessonStatus.outdated,
+          isDeleted: false,
+        },
+      }),
+      this.prisma.exam.count({
+        where: { courseId, status: LessonStatus.draft, isDeleted: false },
+      }),
+      this.prisma.exam.count({
+        where: { courseId, status: LessonStatus.outdated, isDeleted: false },
+      }),
     ]);
-    return draftLessons + outdatedLessons + draftMaterials + outdatedMaterials + draftExams + outdatedExams > 0;
+    return (
+      draftLessons +
+        outdatedLessons +
+        draftMaterials +
+        outdatedMaterials +
+        draftExams +
+        outdatedExams >
+      0
+    );
   }
 
   // ── Helper: kiểm tra học viên bị chặn bởi đề thi ──────────────────────────
