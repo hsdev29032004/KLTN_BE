@@ -1,4 +1,5 @@
-import { IsString, IsInt, Min } from 'class-validator';
+import { IsString, IsInt, Min, IsNumber, Max } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateCourseDto {
     @IsString()
@@ -16,4 +17,10 @@ export class CreateCourseDto {
 
     @IsString()
     description!: string;
+
+    @Type(() => Number)
+    @IsNumber()
+    @Min(0)
+    @Max(100)
+    commissionRate!: number;
 }

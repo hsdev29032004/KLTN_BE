@@ -1,4 +1,5 @@
-import { IsString, IsInt, Min, IsOptional } from 'class-validator';
+import { IsString, IsInt, Min, IsOptional, IsNumber, Max } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class UpdateCourseDto {
     @IsOptional()
@@ -21,4 +22,11 @@ export class UpdateCourseDto {
     @IsOptional()
     @IsString()
     description?: string;
+
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber()
+    @Min(0)
+    @Max(100)
+    commissionRate?: number;
 }

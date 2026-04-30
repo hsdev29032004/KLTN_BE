@@ -33,6 +33,7 @@ const COURSE_LIST_SELECT = {
   slug: true,
   thumbnail: true,
   price: true,
+  commissionRate: true,
   star: true,
   status: true,
   studentCount: true,
@@ -279,7 +280,7 @@ export class CourseService {
     // Load courses and validate
     const courses = await this.prisma.course.findMany({
       where: { id: { in: courseIds }, isDeleted: false },
-      select: { id: true, price: true, userId: true },
+      select: { id: true, price: true, userId: true, commissionRate: true },
     });
 
     if (courses.length !== courseIds.length) {
@@ -291,12 +292,7 @@ export class CourseService {
       0,
     );
 
-    const system = await this.prisma.system.findUnique({
-      where: { id: 'system' },
-      select: { comissionRate: true },
-    });
-
-    if (!system) throw new NotFoundException('Hệ thống chưa được cấu hình');
+    // Per-course commission is used; system-level commission is deprecated for calculations.
 
     // Tạo hóa đơn pending + chi tiết hóa đơn
     const invoice = await this.prisma.$transaction(async (tx) => {
@@ -315,7 +311,7 @@ export class CourseService {
               coursePurchaseId: purchase.id,
               courseId: c.id,
               price: c.price,
-              commissionRate: system.comissionRate,
+              commissionRate: c.commissionRate ?? 0,
               status: 'pending',
             },
           }),
@@ -823,6 +819,16 @@ export class CourseService {
       if (Number.isNaN(priceNum))
         throw new BadRequestException('Giá không hợp lệ');
     }
+    // Coerce commission rate to number and validate
+    let commissionNum: number | undefined = undefined;
+    if ((dto as any).commissionRate !== undefined && (dto as any).commissionRate !== null) {
+      commissionNum = Number((dto as any).commissionRate);
+      if (Number.isNaN(commissionNum) || commissionNum < 0 || commissionNum > 100) {
+        throw new BadRequestException('Tỷ lệ hoa hồng không hợp lệ (0-100)');
+      }
+    } else {
+      throw new BadRequestException('Trường commissionRate là bắt buộc');
+    }
     if (thumbnailFile) {
       const uploaded = await this.cloudinary.uploadFile(
         thumbnailFile,
@@ -843,6 +849,7 @@ export class CourseService {
         star: 0,
         studentCount: 0,
         userId,
+        commissionRate: commissionNum as number,
       },
     });
 
@@ -955,6 +962,13 @@ export class CourseService {
       const p = Number(dto.price as any);
       if (Number.isNaN(p)) throw new BadRequestException('Giá không hợp lệ');
       data.price = p;
+    }
+
+    // Coerce commissionRate for updates if provided
+    if ((dto as any).commissionRate !== undefined && (dto as any).commissionRate !== null) {
+      const c = Number((dto as any).commissionRate);
+      if (Number.isNaN(c) || c < 0 || c > 100) throw new BadRequestException('Tỷ lệ hoa hồng không hợp lệ (0-100)');
+      data.commissionRate = c;
     }
 
     if (thumbnailFile) {
