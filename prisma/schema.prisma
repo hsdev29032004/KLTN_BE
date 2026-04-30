@@ -396,6 +396,9 @@ model Exam {
   passPercent     Int          // % hoàn thiện để pass
   retryAfterDays  Int          // số ngày có thể làm lại
   questionCount   Int          // số câu hỏi lấy ngẫu nhiên mỗi lần thi
+  numEasy         Int          @default(0)
+  numNormal       Int          @default(0)
+  numHard         Int          @default(0)
   duration        Int          // thời gian làm bài (phút)
   status          LessonStatus @default(draft)
   publisherId     String?
@@ -421,6 +424,7 @@ model ExamQuestion {
   optionC       String
   optionD       String
   correctAnswer String   // "A" | "B" | "C" | "D"
+  difficulty    Difficulty @default(normal)
   isDeleted     Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -495,6 +499,12 @@ enum MaterialType {
   img
   link
   other
+}
+
+enum Difficulty {
+  easy
+  normal
+  hard
 }
 
 enum CourseReportStatus {

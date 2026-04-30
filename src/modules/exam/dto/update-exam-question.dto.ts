@@ -25,4 +25,9 @@ export class UpdateExamQuestionDto {
   @IsString()
   @IsIn(['A', 'B', 'C', 'D'])
   correctAnswer?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['easy', 'normal', 'hard'])
+  difficulty?: string;
 }

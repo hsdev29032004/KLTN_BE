@@ -635,6 +635,9 @@ export class CourseService {
             passPercent: true,
             retryAfterDays: true,
             questionCount: true,
+            numEasy: true,
+            numNormal: true,
+            numHard: true,
             duration: true,
             status: true,
             createdAt: true,
@@ -1247,6 +1250,9 @@ export class CourseService {
         );
       }
 
+      // validate exams have required question counts before sending for review
+      await this.validateExamQuestionCounts(courseId);
+
       await this.prisma.$transaction([
         this.prisma.course.update({
           where: { id: courseId },
@@ -1276,6 +1282,9 @@ export class CourseService {
     if (!hasChanges) {
       throw new BadRequestException('Không có nội dung nào cần xét duyệt');
     }
+
+    // validate exams have required question counts before sending for review
+    await this.validateExamQuestionCounts(courseId);
 
     await this.prisma.$transaction([
       this.prisma.course.update({
@@ -1510,6 +1519,37 @@ export class CourseService {
         outdatedExams >
       0
     );
+  }
+
+  // Validate that draft exams in this course meet their difficulty quotas
+  private async validateExamQuestionCounts(courseId: string) {
+    const draftExams = await this.prisma.exam.findMany({
+      where: { courseId, status: LessonStatus.draft, isDeleted: false },
+      select: { id: true, name: true, numEasy: true, numNormal: true, numHard: true },
+    });
+
+    const errors: string[] = [];
+
+    for (const ex of draftExams) {
+      const [easyCount, normalCount, hardCount] = await Promise.all([
+        this.prisma.examQuestion.count({ where: { examId: ex.id, difficulty: 'easy', isDeleted: false } }),
+        this.prisma.examQuestion.count({ where: { examId: ex.id, difficulty: 'normal', isDeleted: false } }),
+        this.prisma.examQuestion.count({ where: { examId: ex.id, difficulty: 'hard', isDeleted: false } }),
+      ]);
+
+      const need: string[] = [];
+      if ((ex.numEasy ?? 0) > easyCount) need.push(`cần ${(ex.numEasy ?? 0) - easyCount} câu dễ`);
+      if ((ex.numNormal ?? 0) > normalCount) need.push(`cần ${(ex.numNormal ?? 0) - normalCount} câu bình thường`);
+      if ((ex.numHard ?? 0) > hardCount) need.push(`cần ${(ex.numHard ?? 0) - hardCount} câu khó`);
+
+      if (need.length > 0) {
+        errors.push(`Đề thi "${ex.name}" thiếu: ${need.join(', ')}`);
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new BadRequestException(`Không thể gửi xét duyệt: ${errors.join('; ')}`);
+    }
   }
 
   // ── Helper: kiểm tra học viên bị chặn bởi đề thi ──────────────────────────

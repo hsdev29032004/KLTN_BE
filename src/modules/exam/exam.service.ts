@@ -28,6 +28,17 @@ export class ExamService {
     if (course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
 
+    // Validate exam difficulty configuration
+    const numEasy = (dto as any).numEasy !== undefined ? Number((dto as any).numEasy) : 0;
+    const numNormal = (dto as any).numNormal !== undefined ? Number((dto as any).numNormal) : 0;
+    const numHard = (dto as any).numHard !== undefined ? Number((dto as any).numHard) : 0;
+    if ([numEasy, numNormal, numHard].some((n) => Number.isNaN(n) || n < 0)) {
+      throw new BadRequestException('Cấu hình đề thi không hợp lệ: numEasy/numNormal/numHard phải là số >= 0');
+    }
+    if (numEasy + numNormal + numHard <= 0) {
+      throw new BadRequestException('Cấu hình đề thi không hợp lệ: tổng numEasy + numNormal + numHard phải lớn hơn 0');
+    }
+
     const exam = await this.prisma.exam.create({
       data: {
         name: dto.name,
@@ -35,6 +46,9 @@ export class ExamService {
         retryAfterDays: dto.retryAfterDays,
         questionCount: dto.questionCount,
         duration: dto.duration,
+        numEasy,
+        numNormal,
+        numHard,
         courseId,
         status: LessonStatus.draft,
       },
@@ -54,9 +68,42 @@ export class ExamService {
     if (exam.course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác đề thi này');
 
+    const updateData: any = { ...dto };
+    if ((dto as any).numEasy !== undefined) updateData.numEasy = (dto as any).numEasy;
+    if ((dto as any).numNormal !== undefined) updateData.numNormal = (dto as any).numNormal;
+    if ((dto as any).numHard !== undefined) updateData.numHard = (dto as any).numHard;
+
+    // Validate new configuration values
+    const newNumEasy = (dto as any).numEasy !== undefined ? Number((dto as any).numEasy) : Number(exam.numEasy ?? 0);
+    const newNumNormal = (dto as any).numNormal !== undefined ? Number((dto as any).numNormal) : Number(exam.numNormal ?? 0);
+    const newNumHard = (dto as any).numHard !== undefined ? Number((dto as any).numHard) : Number(exam.numHard ?? 0);
+    if ([newNumEasy, newNumNormal, newNumHard].some((n) => Number.isNaN(n) || n < 0)) {
+      throw new BadRequestException('Số lượng câu hỏi trong đề thi không hợp lệ');
+    }
+    const totalRequested = newNumEasy + newNumNormal + newNumHard;
+    if (totalRequested <= 0) {
+      throw new BadRequestException('Số lượng câu hỏi trong đề thi không hợp lệ');
+    }
+
+    const [availEasy, availNormal, availHard] = await Promise.all([
+      this.prisma.examQuestion.count({ where: { examId, isDeleted: false, difficulty: 'easy' } }),
+      this.prisma.examQuestion.count({ where: { examId, isDeleted: false, difficulty: 'normal' } }),
+      this.prisma.examQuestion.count({ where: { examId, isDeleted: false, difficulty: 'hard' } }),
+    ]);
+
+    if (availEasy < newNumEasy) {
+      throw new BadRequestException(`Đề thi thiếu câu dễ: cần ${newNumEasy}, hiện có ${availEasy}`);
+    }
+    if (availNormal < newNumNormal) {
+      throw new BadRequestException(`Đề thi thiếu câu bình thường: cần ${newNumNormal}, hiện có ${availNormal}`);
+    }
+    if (availHard < newNumHard) {
+      throw new BadRequestException(`Đề thi thiếu câu khó: cần ${newNumHard}, hiện có ${availHard}`);
+    }
+
     const updated = await this.prisma.exam.update({
       where: { id: examId },
-      data: { ...dto },
+      data: updateData,
     });
 
     return { message: 'Cập nhật đề thi thành công', data: updated };
@@ -106,7 +153,25 @@ export class ExamService {
     if (exam.course.userId !== user.id && user.role?.name !== ROLE_NAME.ADMIN)
       throw new ForbiddenException('Bạn không có quyền xem đề thi này');
 
-    return { message: 'Lấy chi tiết đề thi thành công', data: exam };
+    // Ensure frontend receives difficulty configuration for autofill
+    const responseData = {
+      id: exam.id,
+      name: exam.name,
+      passPercent: exam.passPercent,
+      retryAfterDays: exam.retryAfterDays,
+      questionCount: exam.questionCount,
+      duration: exam.duration,
+      status: exam.status,
+      numEasy: (exam as any).numEasy ?? 0,
+      numNormal: (exam as any).numNormal ?? 0,
+      numHard: (exam as any).numHard ?? 0,
+      course: exam.course,
+      questions: exam.questions,
+      _count: exam._count,
+      createdAt: exam.createdAt,
+    };
+
+    return { message: 'Lấy chi tiết đề thi thành công', data: responseData };
   }
 
   // ── Teacher: Thêm câu hỏi ────────────────────────────────────────────────
@@ -129,6 +194,7 @@ export class ExamService {
         optionC: dto.optionC,
         optionD: dto.optionD,
         correctAnswer: dto.correctAnswer,
+        difficulty: (dto as any).difficulty || 'normal',
       },
     });
 
@@ -155,6 +221,7 @@ export class ExamService {
         optionC: dto.optionC,
         optionD: dto.optionD,
         correctAnswer: dto.correctAnswer,
+        difficulty: (dto as any).difficulty || 'normal',
       })),
     });
 
@@ -172,9 +239,12 @@ export class ExamService {
     if (question.exam.course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác câu hỏi này');
 
+    const updateData: any = { ...dto };
+    if ((dto as any).difficulty !== undefined) updateData.difficulty = (dto as any).difficulty;
+
     const updated = await this.prisma.examQuestion.update({
       where: { id: questionId },
-      data: { ...dto },
+      data: updateData,
     });
 
     return { message: 'Cập nhật câu hỏi thành công', data: updated };
@@ -249,30 +319,30 @@ export class ExamService {
     }
 
     // Kiểm tra đề thi tiên quyết
-    const blockingExam = await this.getBlockingPrerequisiteExam(
-      exam.courseId,
-      exam.createdAt,
-      userId,
-    );
-    if (blockingExam) {
-      return {
-        message: 'Lấy thông tin đề thi thành công',
-        data: {
-          id: exam.id,
-          name: exam.name,
-          passPercent: exam.passPercent,
-          duration: exam.duration,
-          questionCount: exam.questionCount,
-          totalQuestions: exam._count.questions,
-          courseName: exam.course.name,
-          hasPassed: false,
-          canTakeExam: false,
-          blockedByExam: blockingExam,
-          retryAvailableAt: null,
-          inProgressAttemptId: null,
-        },
-      };
-    }
+    // const blockingExam = await this.getBlockingPrerequisiteExam(
+    //   exam.courseId,
+    //   exam.createdAt,
+    //   userId,
+    // );
+    // if (blockingExam) {
+    //   return {
+    //     message: 'Lấy thông tin đề thi thành công',
+    //     data: {
+    //       id: exam.id,
+    //       name: exam.name,
+    //       passPercent: exam.passPercent,
+    //       duration: exam.duration,
+    //       questionCount: exam.questionCount,
+    //       totalQuestions: exam._count.questions,
+    //       courseName: exam.course.name,
+    //       hasPassed: false,
+    //       canTakeExam: false,
+    //       blockedByExam: blockingExam,
+    //       retryAvailableAt: null,
+    //       inProgressAttemptId: null,
+    //     },
+    //   };
+    // }
 
     // Lấy lần thi gần nhất
     const lastAttempt = await this.prisma.examAttempt.findFirst({
@@ -295,6 +365,9 @@ export class ExamService {
             passPercent: exam.passPercent,
             duration: exam.duration,
             questionCount: exam.questionCount,
+            numEasy: (exam as any).numEasy ?? 0,
+            numNormal: (exam as any).numNormal ?? 0,
+            numHard: (exam as any).numHard ?? 0,
             totalQuestions: exam._count.questions,
             courseName: exam.course.name,
             hasPassed: false,
@@ -315,6 +388,9 @@ export class ExamService {
             passPercent: exam.passPercent,
             duration: exam.duration,
             questionCount: exam.questionCount,
+            numEasy: (exam as any).numEasy ?? 0,
+            numNormal: (exam as any).numNormal ?? 0,
+            numHard: (exam as any).numHard ?? 0,
             totalQuestions: exam._count.questions,
             courseName: exam.course.name,
             hasPassed: true,
@@ -344,6 +420,9 @@ export class ExamService {
         passPercent: exam.passPercent,
         duration: exam.duration,
         questionCount: exam.questionCount,
+        numEasy: (exam as any).numEasy ?? 0,
+        numNormal: (exam as any).numNormal ?? 0,
+        numHard: (exam as any).numHard ?? 0,
         totalQuestions: exam._count.questions,
         courseName: exam.course.name,
         hasPassed: false,
@@ -376,16 +455,16 @@ export class ExamService {
     }
 
     // Kiểm tra đề thi tiên quyết (phải pass đề trước mới làm đề sau)
-    const blockingExam = await this.getBlockingPrerequisiteExam(
-      exam.courseId,
-      exam.createdAt,
-      userId,
-    );
-    if (blockingExam) {
-      throw new ForbiddenException(
-        `Bạn cần hoàn thành các đề thi trước`,
-      );
-    }
+    // const blockingExam = await this.getBlockingPrerequisiteExam(
+    //   exam.courseId,
+    //   exam.createdAt,
+    //   userId,
+    // );
+    // if (blockingExam) {
+    //   throw new ForbiddenException(
+    //     `Bạn cần hoàn thành các đề thi trước`,
+    //   );
+    // }
 
     // Kiểm tra có bài thi chưa hoàn thành
     const inProgress = await this.prisma.examAttempt.findFirst({
@@ -452,32 +531,61 @@ export class ExamService {
       }
     }
 
-    // Lấy câu hỏi ngẫu nhiên
-    const allQuestions = await this.prisma.examQuestion.findMany({
-      where: { examId, isDeleted: false },
-      select: {
-        id: true,
-        content: true,
-        optionA: true,
-        optionB: true,
-        optionC: true,
-        optionD: true,
-      },
-    });
+    // Lấy câu hỏi theo độ khó theo cấu hình (random trong mỗi nhóm)
+    const reqEasy = exam.numEasy ?? 0;
+    const reqNormal = exam.numNormal ?? 0;
+    const reqHard = exam.numHard ?? 0;
 
-    if (allQuestions.length < exam.questionCount) {
+    const totalRequested = reqEasy + reqNormal + reqHard;
+    if (totalRequested <= 0) {
+      throw new BadRequestException('Cấu hình đề thi chưa được thiết lập (numEasy/numNormal/numHard).');
+    }
+
+    // Lấy tất cả câu theo từng độ khó
+    const [easyQs, normalQs, hardQs] = await Promise.all([
+      this.prisma.examQuestion.findMany({ where: { examId, isDeleted: false, difficulty: 'easy' }, select: { id: true, content: true, optionA: true, optionB: true, optionC: true, optionD: true } }),
+      this.prisma.examQuestion.findMany({ where: { examId, isDeleted: false, difficulty: 'normal' }, select: { id: true, content: true, optionA: true, optionB: true, optionC: true, optionD: true } }),
+      this.prisma.examQuestion.findMany({ where: { examId, isDeleted: false, difficulty: 'hard' }, select: { id: true, content: true, optionA: true, optionB: true, optionC: true, optionD: true } }),
+    ]);
+
+    if (easyQs.length < reqEasy) {
+      throw new BadRequestException(`Đề thi thiếu câu dễ: cần ${reqEasy}, hiện có ${easyQs.length}`);
+    }
+    if (normalQs.length < reqNormal) {
+      throw new BadRequestException(`Đề thi thiếu câu bình thường: cần ${reqNormal}, hiện có ${normalQs.length}`);
+    }
+    if (hardQs.length < reqHard) {
+      throw new BadRequestException(`Đề thi thiếu câu khó: cần ${reqHard}, hiện có ${hardQs.length}`);
+    }
+
+    // Helper: shuffle array in-place
+    const shuffle = (arr: any[]) => {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+    };
+
+    const selected: Array<any> = [];
+
+    const pickRandom = (pool: any[], count: number) => {
+      if (count <= 0) return [];
+      const copy = [...pool];
+      shuffle(copy);
+      return copy.slice(0, count);
+    };
+
+    selected.push(...pickRandom(easyQs, reqEasy));
+    selected.push(...pickRandom(normalQs, reqNormal));
+    selected.push(...pickRandom(hardQs, reqHard));
+
+    if (selected.length !== totalRequested) {
       throw new BadRequestException(
-        `Đề thi chưa có đủ câu hỏi (cần ${exam.questionCount}, hiện có ${allQuestions.length})`,
+        `Không thể chọn đủ câu cho đề thi (yêu cầu ${totalRequested}, được chọn ${selected.length})`,
       );
     }
 
-    // Fisher-Yates shuffle → lấy questionCount câu đầu
-    const shuffled = [...allQuestions];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    const selectedQuestions = shuffled.slice(0, exam.questionCount);
+    const selectedQuestions = selected;
 
     // Tạo attempt + answer records
     const attempt = await this.prisma.examAttempt.create({

@@ -14,6 +14,8 @@ Học viên bấm làm bài → Hệ thống random N câu từ ngân hàng → 
   → Không đạt → Chờ Y ngày → Làm lại
 ```
 
+Important: When sending content for review (course submit), the backend now validates draft exams: each draft exam must have at least the configured numbers of easy/normal/hard questions (`numEasy`, `numNormal`, `numHard`) in its question bank. If any draft exam is missing required questions the review request will be rejected with an error describing the shortage.
+
 ### Thứ tự nội dung khóa học
 
 Lesson và Exam sắp xếp theo `createdAt asc`. Exam hoạt động như **cổng chặn**: học viên phải pass tất cả exam trước lesson đó mới xem được tài liệu.
@@ -45,6 +47,11 @@ Lesson 5 (createdAt: T7) → Bị chặn nếu chưa pass Exam 1 hoặc Exam 2
 | status | LessonStatus | draft/published/outdated/deleted |
 | createdAt | DateTime | Thứ tự hiển thị trong khóa học |
 
+Additional configuration fields (new):
+| numEasy | Int | Số câu dễ yêu cầu trong ngân hàng câu hỏi |
+| numNormal | Int | Số câu bình thường yêu cầu trong ngân hàng câu hỏi |
+| numHard | Int | Số câu khó yêu cầu trong ngân hàng câu hỏi |
+
 ### Bảng `exam_questions` (Ngân hàng câu hỏi)
 | Field | Type | Mô tả |
 |-------|------|-------|
@@ -57,6 +64,7 @@ Lesson 5 (createdAt: T7) → Bị chặn nếu chưa pass Exam 1 hoặc Exam 2
 | optionD | String | Đáp án D |
 | correctAnswer | String | "A" / "B" / "C" / "D" |
 | isDeleted | Boolean | Soft delete |
+| difficulty | Difficulty | `easy` / `normal` / `hard` (mặc định `normal`) |
 
 ### Bảng `exam_attempts` (Bài thi của học viên)
 | Field | Type | Mô tả |
@@ -100,7 +108,10 @@ Role: teacher
   "passPercent": 70,
   "retryAfterDays": 3,
   "questionCount": 10,
-  "duration": 30
+  "duration": 30,
+  "numEasy": 2,
+  "numNormal": 2,
+  "numHard": 6
 }
 ```
 
@@ -201,6 +212,8 @@ Role: teacher
   "correctAnswer": "A"
 }
 ```
+
+Note: you can set question difficulty when creating a question by adding `"difficulty": "easy"|"normal"|"hard"`. Default is `normal`.
 
 #### 3.1.6 Thêm nhiều câu hỏi cùng lúc
 ```

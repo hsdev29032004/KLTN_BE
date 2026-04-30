@@ -19,4 +19,9 @@ export class CreateExamQuestionDto {
   @IsString()
   @IsIn(['A', 'B', 'C', 'D'])
   correctAnswer!: string;
+
+  // Difficulty: 'easy' | 'normal' | 'hard'
+  @IsString()
+  @IsIn(['easy', 'normal', 'hard'])
+  difficulty!: string;
 }

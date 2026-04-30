@@ -20,4 +20,16 @@ export class CreateExamDto {
   @IsInt()
   @Min(1)
   duration!: number; // phút
+
+  @IsInt()
+  @Min(0)
+  numEasy!: number;
+
+  @IsInt()
+  @Min(0)
+  numNormal!: number;
+
+  @IsInt()
+  @Min(0)
+  numHard!: number;
 }

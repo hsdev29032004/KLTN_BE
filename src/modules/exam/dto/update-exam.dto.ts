@@ -25,4 +25,19 @@ export class UpdateExamDto {
   @IsInt()
   @Min(1)
   duration?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  numEasy?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  numNormal?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  numHard?: number;
 }
