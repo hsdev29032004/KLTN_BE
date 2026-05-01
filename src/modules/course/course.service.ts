@@ -287,6 +287,12 @@ export class CourseService {
       throw new NotFoundException('Có khóa học không tồn tại');
     }
 
+    // Kiểm tra không cho mua khóa học của chính mình
+    const ownedCourse = courses.find((c) => c.userId === userId);
+    if (ownedCourse) {
+      throw new BadRequestException('Không thể mua khóa học của chính mình');
+    }
+
     const total = courses.reduce(
       (sum, course) => sum + Number(course.price),
       0,
@@ -1259,6 +1265,16 @@ export class CourseService {
         CourseStatus.rejected,
       ];
       if (!validStatuses.includes(course.status)) {
+        throw new BadRequestException(
+          'Khóa học đang ở trạng thái không thể gửi xét duyệt',
+        );
+      }
+
+      // Kiểm tra phải có ít nhất 1 bài học trước khi gửi xét duyệt lần đầu
+      const lessonCount = await this.prisma.lesson.count({
+        where: { courseId, isDeleted: false },
+      });
+      if (lessonCount === 0) {
         throw new BadRequestException(
           'Khóa học đang ở trạng thái không thể gửi xét duyệt',
         );
