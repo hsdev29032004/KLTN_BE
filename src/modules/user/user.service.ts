@@ -17,6 +17,7 @@ import type { BanUserDto } from './dto/ban-user.dto';
 import type { ChangePasswordDto } from './dto/change-password.dto';
 import type { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { generateSlug } from '@/shared/utils/slug.util';
 
 const USER_SELECT = {
   id: true,
@@ -385,8 +386,12 @@ export class UserService {
     const data: Prisma.UserUpdateInput = {};
     if (dto.fullName !== undefined) {
       data.fullName = dto.fullName;
-      data.slug =
-        dto.fullName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now();
+      let slug = generateSlug(dto.fullName);
+      const slugConflict = await this.prisma.user.findUnique({
+        where: { slug, id: { not: userId } } as any,
+      });
+      if (slugConflict) slug = `${slug}-${Date.now()}`;
+      data.slug = slug;
     }
     if (dto.avatar !== undefined) data.avatar = dto.avatar;
     if (dto.introduce !== undefined) data.introduce = dto.introduce;
@@ -411,6 +416,10 @@ export class UserService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || user.isDeleted) {
       throw new NotFoundException('Người dùng không tồn tại');
+    }
+
+    if (dto.currentPassword === dto.newPassword) {
+      throw new BadRequestException('Mật khẩu mới không được trùng mật khẩu cũ');
     }
 
     const isValid = await bcrypt.compare(dto.currentPassword, user.password);
@@ -450,8 +459,12 @@ export class UserService {
     const data: Prisma.UserUpdateInput = {};
     if (dto.fullName !== undefined) {
       data.fullName = dto.fullName;
-      data.slug =
-        dto.fullName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now();
+      let slug = generateSlug(dto.fullName);
+      const slugConflict = await this.prisma.user.findUnique({
+        where: { slug, id: { not: userId } } as any,
+      });
+      if (slugConflict) slug = `${slug}-${Date.now()}`;
+      data.slug = slug;
     }
     if (dto.avatar !== undefined) data.avatar = dto.avatar;
     if (dto.introduce !== undefined) data.introduce = dto.introduce;
@@ -497,6 +510,10 @@ export class UserService {
 
     if (user.id === adminUser.id) {
       throw new BadRequestException('Không thể cấm chính mình');
+    }
+
+    if (user.banId) {
+      throw new BadRequestException('Người dùng đã bị cấm');
     }
 
     // Tạo ban record & liên kết với user
