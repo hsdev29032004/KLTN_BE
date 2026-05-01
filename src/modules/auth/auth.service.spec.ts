@@ -49,7 +49,7 @@ describe('AuthService', () => {
   // ── login() ──────────────────────────────────────────────────────────────
 
   describe('login()', () => {
-    it('UN_AUTH_01 – thanh cong: tra ve accessToken, refreshToken, user (khong co password/refreshToken)', async () => {
+    it('UN_AUTH_01 – Đăng nhập thành công', async () => {
       const user = baseUser();
       mockPrisma.user.findUnique.mockResolvedValue(user);
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
@@ -68,38 +68,38 @@ describe('AuthService', () => {
       });
     });
 
-    it('UN_AUTH_02 – email rong → throw "Email is required"', async () => {
+    it('UN_AUTH_02 – Email rỗng', async () => {
       await expect(service.login({ email: '', password: 'pass123' }))
         .rejects.toThrow(new UnauthorizedException('Email is required'));
       expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
     });
 
-    it('UN_AUTH_03 – password rong → throw "Password is required"', async () => {
+    it('UN_AUTH_03 – Password rỗng', async () => {
       await expect(service.login({ email: 'kbo@gmail.com', password: '' }))
         .rejects.toThrow(new UnauthorizedException('Password is required'));
       expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
     });
 
-    it('UN_AUTH_04 – email khong ton tai → throw "Invalid credentials"', async () => {
+    it('UN_AUTH_04 – User không tồn tại', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       await expect(service.login({ email: 'ghost@gmail.com', password: 'pass123' }))
         .rejects.toThrow(new UnauthorizedException('Invalid credentials'));
     });
 
-    it('UN_AUTH_05 – user isDeleted=true → throw "Invalid credentials"', async () => {
+    it('UN_AUTH_05 – User đã bị xóa', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ ...baseUser(), isDeleted: true });
       await expect(service.login({ email: 'test@gmail.com', password: 'pass123' }))
         .rejects.toThrow(new UnauthorizedException('Invalid credentials'));
     });
 
-    it('UN_AUTH_06 – sai mat khau → throw "Invalid credentials"', async () => {
+    it('UN_AUTH_06 – Sai mật khẩu', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(baseUser());
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
       await expect(service.login({ email: 'test@gmail.com', password: 'mk sai' }))
         .rejects.toThrow(new UnauthorizedException('Invalid credentials'));
     });
 
-    it('UN_AUTH_07 – ban con hieu luc → throw "User is banned"', async () => {
+    it('UN_AUTH_07 – User đang bị ban còn hiệu lực', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         ...baseUser(), banId: 'ban-1', timeUnBan: new Date(Date.now() + 60_000),
         ban: { id: 'ban-1', reason: 'vi pham' },
@@ -109,7 +109,7 @@ describe('AuthService', () => {
         .rejects.toThrow(new UnauthorizedException('User is banned'));
     });
 
-    it('UN_AUTH_08 – ban het han → dang nhap thanh cong', async () => {
+    it('UN_AUTH_08 – Ban đã hết hạn', async () => {
       const user = { ...baseUser(), banId: 'ban-1', timeUnBan: new Date(Date.now() - 60_000) };
       mockPrisma.user.findUnique.mockResolvedValue(user);
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
@@ -124,25 +124,25 @@ describe('AuthService', () => {
   // ── register() ───────────────────────────────────────────────────────────
 
   describe('register()', () => {
-    it('UN_AUTH_09 – payload null → throw "Invalid register payload"', async () => {
+    it('UN_AUTH_09 – Payload null', async () => {
       await expect(service.register(null))
         .rejects.toThrow(new UnauthorizedException('Invalid register payload'));
       expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
     });
 
-    it('UN_AUTH_10 – email da ton tai → throw "Email already exists"', async () => {
+    it('UN_AUTH_10 – Email đã tồn tại', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(baseUser());
       await expect(service.register({ email: 'test@gmail.com', password: 'pass123', fullName: 'T', role: 'user' }))
         .rejects.toThrow(new UnauthorizedException('Email already exists'));
     });
 
-    it('UN_AUTH_11 – thieu password/fullName → throw "Missing required fields"', async () => {
+    it('UN_AUTH_11 – Thiếu trường bắt buộc', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       await expect(service.register({ email: 'kbo@gmail.com', role: 'user' }))
         .rejects.toThrow(new UnauthorizedException('Missing required fields'));
     });
 
-    it('UN_AUTH_12 – role User khong co trong DB → throw "Default role not found"', async () => {
+    it("UN_AUTH_12 – Role 'user' không có trong DB", async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
       mockPrisma.role.findFirst.mockResolvedValue(null);
@@ -150,7 +150,7 @@ describe('AuthService', () => {
         .rejects.toThrow(new UnauthorizedException('Default role not found'));
     });
 
-    it('UN_AUTH_13 – role teacher khong co trong DB → throw "Requested role not found"', async () => {
+    it("UN_AUTH_13 – Role 'teacher' không có trong DB", async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
       mockPrisma.role.findFirst
@@ -160,7 +160,7 @@ describe('AuthService', () => {
         .rejects.toThrow(new UnauthorizedException('Requested role not found'));
     });
 
-    it('UN_AUTH_14 – dang ky thanh cong: tra ve { id, email, fullName, slug, avatar, role }', async () => {
+    it('UN_AUTH_14 – Đăng ký thành công', async () => {
       const role = { id: 'r1', name: 'User', rolePermissions: [] };
       const created = { ...baseUser(), id: 'u2', email: 'new@gmail.com', fullName: 'New User', slug: 'new-user-1', role };
       mockPrisma.user.findUnique.mockResolvedValue(null);
@@ -178,7 +178,7 @@ describe('AuthService', () => {
   // ── logout() ─────────────────────────────────────────────────────────────
 
   describe('logout()', () => {
-    it('UN_AUTH_15 – xoa refreshToken cua user trong DB', async () => {
+    it('UN_AUTH_15 – Đăng xuất thành công', async () => {
       mockPrisma.user.update.mockResolvedValue({ ...baseUser(), refreshToken: null });
 
       await service.logout('user-1');
@@ -193,26 +193,26 @@ describe('AuthService', () => {
   // ── refreshToken() ────────────────────────────────────────────────────────
 
   describe('refreshToken()', () => {
-    it('UN_AUTH_16 – token rong → throw "Refresh token is required"', async () => {
+    it('UN_AUTH_16 – Token rỗng', async () => {
       await expect(service.refreshToken(''))
         .rejects.toThrow(new UnauthorizedException('Refresh token is required'));
       expect(mockJwt.verify).not.toHaveBeenCalled();
     });
 
-    it('UN_AUTH_17 – token khong hop le/het han → throw "Invalid or expired refresh token"', async () => {
+    it('UN_AUTH_17 – Token không hợp lệ', async () => {
       mockJwt.verify.mockImplementation(() => { throw new Error('jwt expired'); });
       await expect(service.refreshToken('bad-token'))
         .rejects.toThrow(new UnauthorizedException('Invalid or expired refresh token'));
     });
 
-    it('UN_AUTH_18 – token khong khop user trong DB → throw "Invalid refresh token"', async () => {
+    it('UN_AUTH_18 – Không tìm thấy user với token', async () => {
       mockJwt.verify.mockReturnValue({ id: 'u1' });
       mockPrisma.user.findFirst.mockResolvedValue(null);
       await expect(service.refreshToken('unknown-token'))
         .rejects.toThrow(new UnauthorizedException('Invalid refresh token'));
     });
 
-    it('UN_AUTH_19 – user dang bi ban → throw "User is banned"', async () => {
+    it('UN_AUTH_19 – User bị ban', async () => {
       mockJwt.verify.mockReturnValue({ id: 'u1' });
       mockPrisma.user.findFirst.mockResolvedValue({
         ...baseUser(), banId: 'ban-1', timeUnBan: new Date(Date.now() + 60_000),
@@ -222,7 +222,7 @@ describe('AuthService', () => {
         .rejects.toThrow(new UnauthorizedException('User is banned'));
     });
 
-    it('UN_AUTH_20 – thanh cong: tra ve tokens moi va cap nhat DB', async () => {
+    it('UN_AUTH_20 – Làm mới token thành công', async () => {
       const user = baseUser();
       mockJwt.verify.mockReturnValue({ id: user.id });
       mockPrisma.user.findFirst.mockResolvedValue(user);
