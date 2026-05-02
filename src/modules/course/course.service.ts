@@ -872,6 +872,13 @@ export class CourseService {
     if (course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
 
+    // Không cho phép gửi xét duyệt nếu khóa học đã ngừng kinh doanh
+    if (course.status === CourseStatus.stopped) {
+      throw new BadRequestException(
+        'Không thể gửi xét duyệt cho khóa học đã ngừng kinh doanh',
+      );
+    }
+
     // Không cho phép thao tác khi khóa học đang chờ duyệt hoặc đang chờ cập nhật
     if (
       course.status === CourseStatus.pending ||
@@ -1161,10 +1168,13 @@ export class CourseService {
     if (course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
 
-    // Chỉ cho phép ngừng kinh doanh khi khóa học đang ở trạng thái published
-    if (course.status !== CourseStatus.published) {
+    // Chỉ cho phép ngừng kinh doanh khi khóa học đang ở trạng thái published hoặc cần cập nhật
+    if (
+      course.status !== CourseStatus.published &&
+      course.status !== CourseStatus.need_update
+    ) {
       throw new BadRequestException(
-        'Chỉ có thể ngừng kinh doanh khóa học đang ở trạng thái đã xuất bản',
+        'Chỉ có thể ngừng kinh doanh khóa học đang ở trạng thái đã xuất bản hoặc đang cần cập nhật',
       );
     }
 
