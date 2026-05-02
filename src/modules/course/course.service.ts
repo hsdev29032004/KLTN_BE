@@ -961,6 +961,12 @@ export class CourseService {
     if (course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
 
+    if (course.status === CourseStatus.stopped) {
+      throw new BadRequestException(
+        'Không thể chỉnh sửa khóa học đã ngừng kinh doanh',
+      );
+    }
+
     const data: any = { ...dto };
 
     // Coerce price to number for updates (FormData sends strings)
@@ -1016,12 +1022,18 @@ export class CourseService {
     if (lesson.course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác bài học này');
 
-    // Không cho phép chỉnh sửa khi khóa học đang chờ duyệt hoặc đang chờ cập nhật
+    // Không cho phép chỉnh sửa khi khóa học đang chờ duyệt, đang chờ cập nhật, hoặc đã ngừng kinh doanh
     const courseStatus = lesson.course.status as CourseStatus;
     if (
       courseStatus === CourseStatus.pending ||
-      courseStatus === CourseStatus.update
+      courseStatus === CourseStatus.update ||
+      courseStatus === CourseStatus.stopped
     ) {
+      if (courseStatus === CourseStatus.stopped) {
+        throw new BadRequestException(
+          'Không thể chỉnh sửa bài học của khóa học đã ngừng kinh doanh',
+        );
+      }
       throw new BadRequestException(
         'Không thể chỉnh sửa bài học khi khóa học đang chờ phê duyệt',
       );
@@ -1060,8 +1072,14 @@ export class CourseService {
     const courseStatus = material.lesson.course.status as CourseStatus;
     if (
       courseStatus === CourseStatus.pending ||
-      courseStatus === CourseStatus.update
+      courseStatus === CourseStatus.update ||
+      courseStatus === CourseStatus.stopped
     ) {
+      if (courseStatus === CourseStatus.stopped) {
+        throw new BadRequestException(
+          'Không thể chỉnh sửa nội dung bài học của khóa học đã ngừng kinh doanh',
+        );
+      }
       throw new BadRequestException(
         'Không thể chỉnh sửa tài liệu khi khóa học đang chờ phê duyệt',
       );
@@ -1143,9 +1161,13 @@ export class CourseService {
     if (course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác khóa học này');
 
-    // Thay đổi hành vi: khi giảng viên muốn "ngừng kinh doanh" một khóa học,
-    // chỉ cập nhật trạng thái thành `stopped` để nó vẫn hiển thị với giảng viên
-    // (không xóa dữ liệu). Việc xóa vĩnh viễn vẫn sẽ không được thực hiện ở đây.
+    // Chỉ cho phép ngừng kinh doanh khi khóa học đang ở trạng thái published
+    if (course.status !== CourseStatus.published) {
+      throw new BadRequestException(
+        'Chỉ có thể ngừng kinh doanh khóa học đang ở trạng thái đã xuất bản',
+      );
+    }
+
     await this.prisma.course.update({
       where: { id: courseId },
       data: {
@@ -1170,11 +1192,17 @@ export class CourseService {
     if (lesson.course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác bài học này');
 
-    // Không cho phép xóa khi khóa học đang chờ duyệt hoặc đang chờ cập nhật
+    // Không cho phép xóa khi khóa học đang chờ duyệt, đang chờ cập nhật, hoặc đã ngừng kinh doanh
     if (
       lesson.course.status === CourseStatus.pending ||
-      lesson.course.status === CourseStatus.update
+      lesson.course.status === CourseStatus.update ||
+      lesson.course.status === CourseStatus.stopped
     ) {
+      if (lesson.course.status === CourseStatus.stopped) {
+        throw new BadRequestException(
+          'Không thể xóa bài học của khóa học đã ngừng kinh doanh',
+        );
+      }
       throw new BadRequestException(
         'Không thể xóa bài học khi khóa học đang chờ phê duyệt',
       );
@@ -1222,11 +1250,17 @@ export class CourseService {
     if (material.lesson.course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác tài liệu này');
 
-    // Không cho phép xóa khi khóa học đang chờ duyệt hoặc đang chờ cập nhật
+    // Không cho phép xóa khi khóa học đang chờ duyệt, đang chờ cập nhật, hoặc đã ngừng kinh doanh
     if (
       material.lesson.course.status === CourseStatus.pending ||
-      material.lesson.course.status === CourseStatus.update
+      material.lesson.course.status === CourseStatus.update ||
+      material.lesson.course.status === CourseStatus.stopped
     ) {
+      if (material.lesson.course.status === CourseStatus.stopped) {
+        throw new BadRequestException(
+          'Không thể xóa nội dung bài học của khóa học đã ngừng kinh doanh',
+        );
+      }
       throw new BadRequestException(
         'Không thể xóa tài liệu khi khóa học đang chờ phê duyệt',
       );
