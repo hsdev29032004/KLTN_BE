@@ -865,6 +865,20 @@ export class CourseService {
       },
     });
 
+    // Gắn chủ đề nếu có
+    if (dto.topicIds && dto.topicIds.length > 0) {
+      const validTopics = await this.prisma.topic.findMany({
+        where: { id: { in: dto.topicIds } },
+        select: { id: true },
+      });
+      if (validTopics.length > 0) {
+        await this.prisma.courseTopic.createMany({
+          data: validTopics.map((t) => ({ courseId: course.id, topicId: t.id })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
     return { message: 'Tạo khóa học thành công', data: course };
   }
 
@@ -981,6 +995,8 @@ export class CourseService {
     }
 
     const data: any = { ...dto };
+    // Xóa topicIds khỏi data trước khi update course (xử lý riêng bên dưới)
+    delete data.topicIds;
 
     // Coerce price to number for updates (FormData sends strings)
     if (dto.price !== undefined && dto.price !== null) {
@@ -1020,6 +1036,23 @@ export class CourseService {
       where: { id: courseId },
       data,
     });
+
+    // Đồng bộ chủ đề nếu topicIds được truyền vào (kể cả mảng rỗng để xóa hết)
+    if (dto.topicIds !== undefined) {
+      await this.prisma.courseTopic.deleteMany({ where: { courseId } });
+      if (dto.topicIds.length > 0) {
+        const validTopics = await this.prisma.topic.findMany({
+          where: { id: { in: dto.topicIds } },
+          select: { id: true },
+        });
+        if (validTopics.length > 0) {
+          await this.prisma.courseTopic.createMany({
+            data: validTopics.map((t) => ({ courseId, topicId: t.id })),
+            skipDuplicates: true,
+          });
+        }
+      }
+    }
 
     return { message: 'Cập nhật khóa học thành công', data: updated };
   }
