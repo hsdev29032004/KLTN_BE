@@ -63,11 +63,6 @@ export class AdminUpdateUserDto {
   @IsString()
   roleId?: string;
 
-  @ApiPropertyOptional({ description: 'Số dư khả dụng mới' })
-  @IsOptional()
-  @IsNumber()
-  availableAmount?: number;
-
   @ApiPropertyOptional({ description: 'Tên ngân hàng' })
   @IsOptional()
   @IsString()

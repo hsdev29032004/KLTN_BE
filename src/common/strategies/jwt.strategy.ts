@@ -51,7 +51,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       banId: user.banId,
       isDeleted: user.isDeleted,
       timeBan: user.timeBan,
-      availableAmount: user.availableAmount,
       timeUnBan: user.timeUnBan,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,

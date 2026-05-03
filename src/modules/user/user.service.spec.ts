@@ -33,7 +33,6 @@ describe('UserService', () => {
     banId: null,
     isDeleted: false,
     timeBan: null,
-    availableAmount: 0,
   } as any);
 
   const nonAdminUser = (): IUser => ({

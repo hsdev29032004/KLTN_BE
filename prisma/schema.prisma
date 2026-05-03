@@ -21,7 +21,6 @@ model User {
   updatedAt                DateTime         @updatedAt
   deletedAt                DateTime?
   refreshToken             String?
-  availableAmount          Int?             @default(0)
   bankNumber               String?
   bankName                 String?
   slug                     String           @unique

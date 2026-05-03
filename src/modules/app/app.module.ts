@@ -3,7 +3,6 @@ import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { LockAmountCronService } from '@/infras/cron/lock-amount-cron.service';
 import { DeleteInvoicePendingCronService } from '@/infras/cron/delete-invoice-pending.service';
 import { AppLogger } from '@/infras/loggers/logger.service';
 import { AuthModule } from '../auth/auth.module';
@@ -48,7 +47,6 @@ import { TopicModule } from '../topic/topic.module';
   controllers: [AppController],
   providers: [
     AppService,
-    LockAmountCronService,
     DeleteInvoicePendingCronService,
     AppLogger,
     {

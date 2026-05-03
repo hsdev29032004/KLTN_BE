@@ -31,7 +31,6 @@ const USER_SELECT = {
   isDeleted: true,
   timeBan: true,
   timeUnBan: true,
-  availableAmount: true,
   bankName: true,
   bankNumber: true,
   createdAt: true,
@@ -148,7 +147,6 @@ export class UserService {
       'createdAt',
       'fullName',
       'email',
-      'availableAmount',
     ];
     const safeSortBy = allowedSortFields.includes(sortBy)
       ? sortBy
@@ -542,12 +540,6 @@ export class UserService {
       });
       if (!role) throw new BadRequestException('Role không tồn tại');
       data.role = { connect: { id: dto.roleId } };
-    }
-    if (dto.availableAmount !== undefined) {
-      if (dto.availableAmount < 0) {
-        throw new BadRequestException('Số dư khả dụng không được âm');
-      }
-      data.availableAmount = dto.availableAmount;
     }
     if (dto.bankName !== undefined) data.bankName = dto.bankName;
     if (dto.bankNumber !== undefined) data.bankNumber = dto.bankNumber;

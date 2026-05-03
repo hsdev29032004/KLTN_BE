@@ -17,7 +17,6 @@ export interface IUser {
   banId: string | null,
   isDeleted: boolean,
   timeBan: string | null,
-  availableAmount: number,
   lockAmount: number,
   timeUnBan: string | null,
   createdAt: string,
