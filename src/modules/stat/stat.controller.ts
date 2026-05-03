@@ -4,6 +4,7 @@ import { StatService } from './stat.service';
 import { User } from '@/common/decorators/user.decorator';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { SkipPermission } from '@/common/decorators/authenticated.decorator';
+import { PublicAPI } from '@/common/decorators/public-api.decorator';
 import type { IUser } from '@/shared/types/user.type';
 import {
   QueryRevenueDto,
@@ -76,5 +77,12 @@ export class StatController {
   @Get('course/:courseId/students')
   getCourseStudents(@Param('courseId') courseId: string, @User() user: IUser) {
     return this.statService.getCourseStudents(courseId, user);
+  }
+
+  // ── Public: Home Dashboard ────────────────────────────────────────────
+  @PublicAPI()
+  @Get('home')
+  getHomeDashboard() {
+    return this.statService.getHomeDashboard();
   }
 }

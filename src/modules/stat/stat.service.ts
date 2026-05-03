@@ -1005,4 +1005,90 @@ export class StatService {
       },
     };
   }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  8. PUBLIC HOME DASHBOARD  (không cần auth)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  async getHomeDashboard() {
+    // Lấy role "User" để đếm học viên
+    const userRole = await this.prisma.role.findFirst({
+      where: { name: ROLE_NAME.USER },
+      select: { id: true },
+    });
+
+    const [totalStudents, totalPublishedCourses, topics] = await Promise.all([
+      // Tổng số học viên (role = User, chưa bị xóa)
+      userRole
+        ? this.prisma.user.count({
+            where: { roleId: userRole.id, isDeleted: false },
+          })
+        : 0,
+
+      // Tổng khóa học đã publish
+      this.prisma.course.count({
+        where: { isDeleted: false, status: 'published' },
+      }),
+
+      // Lấy tất cả topic có ít nhất 1 khóa học published, kèm 4 khóa học mỗi topic
+      this.prisma.topic.findMany({
+        where: {
+          courses: {
+            some: {
+              course: { isDeleted: false, status: 'published' },
+            },
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          courses: {
+            where: {
+              course: { isDeleted: false, status: 'published' },
+            },
+            select: {
+              course: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                  thumbnail: true,
+                  price: true,
+                  star: true,
+                  studentCount: true,
+                  user: {
+                    select: { id: true, fullName: true, avatar: true, slug: true },
+                  },
+                },
+              },
+            },
+            orderBy: { course: { studentCount: 'desc' } },
+            take: 4,
+          },
+        },
+      }),
+    ]);
+
+    // Chọn ngẫu nhiên 3 topic (shuffle rồi lấy 3 đầu)
+    const shuffled = topics
+      .map((t) => ({ sort: Math.random(), value: t }))
+      .sort((a, b) => a.sort - b.sort)
+      .map((t) => t.value);
+    const selectedTopics = shuffled.slice(0, 3);
+
+    return {
+      message: 'Lấy dữ liệu trang chủ thành công',
+      data: {
+        stats: {
+          totalStudents,
+          totalPublishedCourses,
+        },
+        topicCourses: selectedTopics.map((topic) => ({
+          topic: { id: topic.id, name: topic.name, slug: topic.slug },
+          courses: topic.courses.map((ct) => ct.course),
+        })),
+      },
+    };
+  }
 }
