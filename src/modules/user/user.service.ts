@@ -338,7 +338,15 @@ export class UserService {
 
   // ── Public: Xem profile theo slug ─────────────────────────────────────────
 
-  async getPublicProfile(slug: string) {
+  async getPublicProfile(
+    slug: string,
+    page = 1,
+    limit = 12,
+  ) {
+    const pageNum = Math.max(1, page);
+    const limitNum = Math.max(1, Math.min(50, limit));
+    const skip = (pageNum - 1) * limitNum;
+
     const user = await this.prisma.user.findUnique({
       where: { slug, isDeleted: false },
       select: {
@@ -348,6 +356,7 @@ export class UserService {
         slug: true,
         introduce: true,
         createdAt: true,
+        role: { select: { name: true } },
         courses: {
           where: { isDeleted: false, status: 'published' },
           select: {
@@ -358,14 +367,20 @@ export class UserService {
             price: true,
             star: true,
             studentCount: true,
+            _count: {
+              select: {
+                reviews: { where: { isDeleted: false } },
+                lessons: { where: { isDeleted: false } },
+              },
+            },
           },
           orderBy: { createdAt: 'desc' },
-          take: 10,
+          skip,
+          take: limitNum,
         },
         _count: {
           select: {
             courses: { where: { isDeleted: false, status: 'published' } },
-            reviews: true,
           },
         },
       },
@@ -375,9 +390,56 @@ export class UserService {
       throw new NotFoundException('Người dùng không tồn tại');
     }
 
+    // Tính tổng học viên và đánh giá trung bình từ tất cả khóa học đã publish
+    const allPublishedCourses = await this.prisma.course.findMany({
+      where: { userId: user.id, isDeleted: false, status: 'published' },
+      select: { studentCount: true, star: true },
+    });
+
+    const totalStudents = allPublishedCourses.reduce(
+      (sum, c) => sum + c.studentCount,
+      0,
+    );
+    const coursesWithRating = allPublishedCourses.filter((c) => Number(c.star) > 0);
+    const avgRating =
+      coursesWithRating.length > 0
+        ? coursesWithRating.reduce((sum, c) => sum + Number(c.star), 0) /
+          coursesWithRating.length
+        : 0;
+
+    const totalReviews = await this.prisma.courseReview.count({
+      where: {
+        course: { userId: user.id, isDeleted: false },
+        isDeleted: false,
+      },
+    });
+
+    const totalCourses = user._count.courses;
+
     return {
       message: 'Lấy thông tin profile thành công',
-      data: user,
+      data: {
+        id: user.id,
+        fullName: user.fullName,
+        avatar: user.avatar,
+        slug: user.slug,
+        introduce: user.introduce,
+        createdAt: user.createdAt,
+        role: user.role,
+        stats: {
+          totalCourses,
+          totalStudents,
+          totalReviews,
+          avgRating: Math.round(avgRating * 10) / 10,
+        },
+        courses: user.courses,
+      },
+      meta: {
+        total: totalCourses,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(totalCourses / limitNum),
+      },
     };
   }
 

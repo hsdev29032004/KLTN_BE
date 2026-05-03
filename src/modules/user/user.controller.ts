@@ -40,8 +40,16 @@ export class UserController {
   // ── Public: Xem profile theo slug ───────────────────────────────────────
   @PublicAPI()
   @Get('profile/:slug')
-  getPublicProfile(@Param('slug') slug: string) {
-    return this.userService.getPublicProfile(slug);
+  getPublicProfile(
+    @Param('slug') slug: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.userService.getPublicProfile(
+      slug,
+      page ? Math.max(1, parseInt(page)) : 1,
+      limit ? Math.max(1, Math.min(50, parseInt(limit))) : 12,
+    );
   }
 
   // ── Auth: Cập nhật profile cá nhân ──────────────────────────────────────
