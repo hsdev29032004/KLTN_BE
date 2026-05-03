@@ -164,7 +164,6 @@ export class UserService {
           _count: {
             select: {
               courses: true,
-              userCourses: true,
               invoices: true,
             },
           },
@@ -211,19 +210,23 @@ export class UserService {
     }
 
     // Tìm user đã mua khóa học của giảng viên hiện tại
-    const where: Prisma.UserCourseWhereInput = {
-      course: {
+    const where: Prisma.DetailInvoicesWhereInput = {
+      courses: {
         userId: roleCurrent === ROLE_NAME.ADMIN ? undefined : user.id,
         isDeleted: false,
       },
+      invoices: { status: 'purchased' },
     };
 
     if (search) {
-      where.user = {
-        OR: [
-          { fullName: { contains: search, mode: 'insensitive' } },
-          { email: { contains: search, mode: 'insensitive' } },
-        ],
+      where.invoices = {
+        ...(where.invoices as any),
+        users: {
+          OR: [
+            { fullName: { contains: search, mode: 'insensitive' } },
+            { email: { contains: search, mode: 'insensitive' } },
+          ],
+        },
       };
     }
 
@@ -250,22 +253,26 @@ export class UserService {
     const skip = (page - 1) * limit;
 
     const [data, total] = await Promise.all([
-      this.prisma.userCourse.findMany({
+      this.prisma.detailInvoices.findMany({
         where,
         select: {
           id: true,
           createdAt: true,
-          user: {
+          invoices: {
             select: {
-              id: true,
-              fullName: true,
-              email: true,
-              avatar: true,
-              slug: true,
-              createdAt: true,
+              users: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  email: true,
+                  avatar: true,
+                  slug: true,
+                  createdAt: true,
+                },
+              },
             },
           },
-          course: {
+          courses: {
             select: {
               id: true,
               name: true,
@@ -278,7 +285,7 @@ export class UserService {
         skip,
         take: limit,
       }),
-      this.prisma.userCourse.count({ where }),
+      this.prisma.detailInvoices.count({ where }),
     ]);
 
     return {
@@ -311,7 +318,6 @@ export class UserService {
         _count: {
           select: {
             courses: true,
-            userCourses: true,
             reviews: true,
             invoices: true,
             transactions: true,

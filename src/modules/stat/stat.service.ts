@@ -604,9 +604,9 @@ export class StatService {
         email: true,
         avatar: true,
         createdAt: true,
-        _count: { select: { userCourses: true, invoices: true } },
+        _count: { select: { invoices: true } },
       },
-      orderBy: { userCourses: { _count: 'desc' } },
+      orderBy: { invoices: { _count: 'desc' } },
       take: 10,
     });
 
@@ -699,7 +699,7 @@ export class StatService {
         studentCount: true,
         createdAt: true,
         user: { select: { id: true, fullName: true, avatar: true } },
-        _count: { select: { userCourses: true, reviews: true, lessons: true } },
+        _count: { select: { detail_invoices: true, reviews: true, lessons: true } },
       },
       orderBy: { [safeSortBy]: order === 'asc' ? 'asc' : 'desc' },
       take: topN,
@@ -777,7 +777,7 @@ export class StatService {
         createdAt: true,
         _count: {
           select: {
-            userCourses: true,
+            detail_invoices: true,
             reviews: true,
             lessons: true,
           },
@@ -792,8 +792,11 @@ export class StatService {
       totalRevenue,
       invoiceDetails,
     ] = await Promise.all([
-      this.prisma.userCourse.count({
-        where: { course: { userId: instructorId, isDeleted: false } },
+      this.prisma.detailInvoices.count({
+        where: {
+          courses: { userId: instructorId, isDeleted: false },
+          invoices: { status: 'purchased' },
+        },
       }),
       this.prisma.courseReview.count({
         where: {
@@ -909,7 +912,7 @@ export class StatService {
           studentCount: true,
           createdAt: true,
           user: { select: { id: true, fullName: true, email: true } },
-          _count: { select: { userCourses: true, reviews: true } },
+          _count: { select: { detail_invoices: true, reviews: true } },
         },
       }),
       this.prisma.user.findMany({
@@ -921,7 +924,7 @@ export class StatService {
           createdAt: true,
           role: { select: { name: true } },
           _count: {
-            select: { courses: true, userCourses: true, reviews: true },
+            select: { courses: true, invoices: true, reviews: true },
           },
         },
       }),
@@ -967,17 +970,24 @@ export class StatService {
       throw new ForbiddenException('Bạn không có quyền xem danh sách học viên');
     }
 
-    const students = await this.prisma.userCourse.findMany({
-      where: { courseId },
+    const students = await this.prisma.detailInvoices.findMany({
+      where: {
+        courseId,
+        invoices: { status: 'purchased' },
+      },
       select: {
         createdAt: true,
-        user: {
+        invoices: {
           select: {
-            id: true,
-            fullName: true,
-            email: true,
-            avatar: true,
-            slug: true,
+            users: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                avatar: true,
+                slug: true,
+              },
+            },
           },
         },
       },
@@ -989,7 +999,7 @@ export class StatService {
       data: {
         total: students.length,
         students: students.map((s) => ({
-          ...s.user,
+          ...s.invoices.users,
           purchasedAt: s.createdAt,
         })),
       },

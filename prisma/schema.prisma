@@ -36,7 +36,6 @@ model User {
   publishedLessons         Lesson[]         @relation("LessonPublishedBy")
   messages                 Message[]
   transactions             Transaction[]
-  userCourses              UserCourse[]
   conversationMembers      ConversationMember[]
   teacherApprovals         CourseApproval[] @relation("teacherApprovals")
   adminApprovals           CourseApproval[] @relation("adminApprovals")
@@ -123,7 +122,6 @@ model Course {
   user            User              @relation(fields: [userId], references: [id])
   detail_invoices DetailInvoices[]
   lessons         Lesson[]
-  userCourses     UserCourse[]
   approvals       CourseApproval[]
   exams           Exam[]
   cartItems       CartItem[]
@@ -285,19 +283,6 @@ model Invoices {
   users           User                 @relation(fields: [userId], references: [id], map: "course_purchases_userId_fkey")
 
   @@map("invoices")
-}
-
-model UserCourse {
-  id        String   @id @default(uuid())
-  userId    String
-  courseId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, courseId])
-  @@map("user_courses")
 }
 
 model Transaction {

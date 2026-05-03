@@ -33,8 +33,11 @@ export class CartService {
     }
 
     // Loại bỏ khóa học đã mua
-    const purchased = await this.prisma.userCourse.findMany({
-      where: { userId, courseId: { in: validIds } },
+    const purchased = await this.prisma.detailInvoices.findMany({
+      where: {
+        courseId: { in: validIds },
+        invoices: { userId, status: 'purchased' },
+      },
       select: { courseId: true },
     });
     const purchasedIds = new Set(purchased.map((p) => p.courseId));

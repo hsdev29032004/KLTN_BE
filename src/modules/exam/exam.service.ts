@@ -306,7 +306,10 @@ export class ExamService {
           select: {
             id: true,
             name: true,
-            userCourses: { where: { userId }, select: { id: true } },
+            detail_invoices: {
+              where: { invoices: { userId, status: 'purchased' } },
+              select: { id: true },
+            },
           },
         },
         _count: { select: { questions: { where: { isDeleted: false } } } },
@@ -314,7 +317,7 @@ export class ExamService {
     });
     if (!exam) throw new NotFoundException('Đề thi không tồn tại');
 
-    if (exam.course.userCourses.length === 0) {
+    if (exam.course.detail_invoices.length === 0) {
       throw new ForbiddenException('Bạn chưa mua khóa học này');
     }
 
@@ -443,14 +446,17 @@ export class ExamService {
         course: {
           select: {
             id: true,
-            userCourses: { where: { userId }, select: { id: true } },
+            detail_invoices: {
+              where: { invoices: { userId, status: 'purchased' } },
+              select: { id: true },
+            },
           },
         },
       },
     });
     if (!exam) throw new NotFoundException('Đề thi không tồn tại');
 
-    if (exam.course.userCourses.length === 0) {
+    if (exam.course.detail_invoices.length === 0) {
       throw new ForbiddenException('Bạn chưa mua khóa học này');
     }
 

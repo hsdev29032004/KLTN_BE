@@ -14,11 +14,10 @@ const mockPrisma = {
   exam: { findMany: jest.fn(), count: jest.fn(), updateMany: jest.fn() },
   examQuestion: { count: jest.fn() },
   courseApproval: { create: jest.fn(), updateMany: jest.fn() },
-  userCourse: { findMany: jest.fn(), findFirst: jest.fn() },
+  detailInvoices: { create: jest.fn(), findMany: jest.fn(), findFirst: jest.fn() },
   conversation: { create: jest.fn() },
   conversationMember: { create: jest.fn() },
   invoices: { create: jest.fn(), update: jest.fn() },
-  detailInvoices: { create: jest.fn() },
   $transaction: jest.fn(),
 };
 

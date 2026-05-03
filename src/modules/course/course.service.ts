@@ -268,8 +268,11 @@ export class CourseService {
     }
 
     // Check already purchased
-    const already = await this.prisma.userCourse.findMany({
-      where: { userId, courseId: { in: courseIds } },
+    const already = await this.prisma.detailInvoices.findMany({
+      where: {
+        courseId: { in: courseIds },
+        invoices: { userId, status: 'purchased' },
+      },
       select: { courseId: true },
     });
 
@@ -404,16 +407,6 @@ export class CourseService {
         data: { status: 'paid' },
       });
 
-      // Tạo UserCourse
-      for (const courseId of courseIds) {
-        const exists = await tx.userCourse.findFirst({
-          where: { userId, courseId },
-        });
-        if (!exists) {
-          await tx.userCourse.create({ data: { userId, courseId } });
-        }
-      }
-
       // Cập nhật studentCount
       await Promise.all(
         courseIds.map((courseId) =>
@@ -516,8 +509,11 @@ export class CourseService {
 
     // If not privileged by role/ownership, allow purchased users full access
     if (!isPrivileged && user) {
-      const purchased = await this.prisma.userCourse.findFirst({
-        where: { courseId: courseBasic.id, userId: user.id },
+      const purchased = await this.prisma.detailInvoices.findFirst({
+        where: {
+          courseId: courseBasic.id,
+          invoices: { userId: user.id, status: 'purchased' },
+        },
         select: { id: true },
       });
       if (purchased) isPrivileged = true;
@@ -587,7 +583,7 @@ export class CourseService {
           orderBy: { createdAt: 'asc' },
         },
         _count: {
-          select: { reviews: true, userCourses: true },
+          select: { reviews: true, detail_invoices: true },
         },
         approvals: {
           orderBy: { createdAt: 'desc' },
@@ -653,8 +649,11 @@ export class CourseService {
     // For non-privileged users, additionally check if they purchased the course
     let allowFullAccess = isPrivileged;
     if (!allowFullAccess && user) {
-      const purchased = await this.prisma.userCourse.findFirst({
-        where: { courseId: course.id, userId: user.id },
+      const purchased = await this.prisma.detailInvoices.findFirst({
+        where: {
+          courseId: course.id,
+          invoices: { userId: user.id, status: 'purchased' },
+        },
       });
       if (purchased) allowFullAccess = true;
     }
@@ -667,13 +666,15 @@ export class CourseService {
   }
 
   async findMyCourses(userId: string) {
-    // Lấy courseId từ UserCourse rồi truy vấn Course tương ứng (giữ format giống findAll)
-    const userCourses = await this.prisma.userCourse.findMany({
-      where: { userId },
+    // Lấy courseId từ DetailInvoices (hóa đơn đã thanh toán) rồi truy vấn Course tương ứng
+    const purchasedDetails = await this.prisma.detailInvoices.findMany({
+      where: {
+        invoices: { userId, status: 'purchased' },
+      },
       select: { courseId: true },
     });
 
-    const courseIds = userCourses.map((uc) => uc.courseId);
+    const courseIds = [...new Set(purchasedDetails.map((d) => d.courseId))];
     if (courseIds.length === 0) {
       return { message: 'Lấy danh sách khóa học đã mua thành công', data: [] };
     }
@@ -716,7 +717,12 @@ export class CourseService {
         lesson: {
           include: {
             course: {
-              include: { userCourses: { select: { userId: true } } },
+              include: {
+                detail_invoices: {
+                  where: { invoices: { status: 'purchased' } },
+                  select: { invoices: { select: { userId: true } } },
+                },
+              },
             },
           },
         },
@@ -762,9 +768,9 @@ export class CourseService {
       // Allow access if the course is stopped but the user has purchased it
       const purchased =
         !!user &&
-        !!lessonMaterial.lesson?.course?.userCourses &&
-        lessonMaterial.lesson.course.userCourses.some(
-          (uc: any) => uc.userId === user.id,
+        !!lessonMaterial.lesson?.course?.detail_invoices &&
+        lessonMaterial.lesson.course.detail_invoices.some(
+          (di: any) => di.invoices?.userId === user.id,
         );
 
       if (
@@ -1712,8 +1718,8 @@ export class CourseService {
     }
 
     // 4. Đã mua khóa học → cho phép
-    const purchased = lessonMaterial.lesson?.course?.userCourses?.some(
-      (uc: any) => uc.userId === user.id,
+    const purchased = lessonMaterial.lesson?.course?.detail_invoices?.some(
+      (di: any) => di.invoices?.userId === user.id,
     );
     return !!purchased;
   }

@@ -15,7 +15,7 @@ describe('ReviewService', () => {
   const reviewId = 'review-1';
 
   const baseCourse = () => ({ id: courseId, isDeleted: false, status: 'published', star: 4 });
-  const baseUserCourse = () => ({ userId, courseId });
+  const basePurchased = () => ({ id: 'di-1', courseId, invoices: { userId, status: 'purchased' } });
   const baseReview = () => ({
     id: reviewId,
     reviewerId: userId,
@@ -40,7 +40,7 @@ describe('ReviewService', () => {
 
     mockPrisma = {
       course: { findFirst: jest.fn(), update: jest.fn() },
-      userCourse: { findFirst: jest.fn() },
+      detailInvoices: { findFirst: jest.fn() },
       courseReview: { findFirst: jest.fn(), findMany: jest.fn() },
       $transaction: jest.fn((cb) => (typeof cb === 'function' ? cb(txMock) : Promise.resolve(cb))),
     };
@@ -69,7 +69,7 @@ describe('ReviewService', () => {
 
     it('UN_REV_2 – Chưa mua khóa học → ForbiddenException', async () => {
       mockPrisma.course.findFirst.mockResolvedValue(baseCourse());
-      mockPrisma.userCourse.findFirst.mockResolvedValue(null);
+      mockPrisma.detailInvoices.findFirst.mockResolvedValue(null);
 
       await expect(service.create(userId, dto))
         .rejects.toThrow(new ForbiddenException('Bạn phải mua khóa học trước khi đánh giá'));
@@ -77,7 +77,7 @@ describe('ReviewService', () => {
 
     it('UN_REV_3 – Đã đánh giá rồi → BadRequestException', async () => {
       mockPrisma.course.findFirst.mockResolvedValue(baseCourse());
-      mockPrisma.userCourse.findFirst.mockResolvedValue(baseUserCourse());
+      mockPrisma.detailInvoices.findFirst.mockResolvedValue(basePurchased());
       mockPrisma.courseReview.findFirst.mockResolvedValue(baseReview());
 
       await expect(service.create(userId, dto))
@@ -87,7 +87,7 @@ describe('ReviewService', () => {
     it('UN_REV_4 – Đánh giá thành công → tạo review, cập nhật course.star', async () => {
       const createdReview = { ...baseReview() };
       mockPrisma.course.findFirst.mockResolvedValue(baseCourse());
-      mockPrisma.userCourse.findFirst.mockResolvedValue(baseUserCourse());
+      mockPrisma.detailInvoices.findFirst.mockResolvedValue(basePurchased());
       mockPrisma.courseReview.findFirst.mockResolvedValue(null);
 
       // Cần override $transaction để trả về createdReview
@@ -128,7 +128,7 @@ describe('ReviewService', () => {
     it('UN_REV_6 – Review cũ đã soft-delete → cho phép tạo review mới', async () => {
       const newReview = { ...baseReview(), id: 'review-2' };
       mockPrisma.course.findFirst.mockResolvedValue(baseCourse());
-      mockPrisma.userCourse.findFirst.mockResolvedValue(baseUserCourse());
+      mockPrisma.detailInvoices.findFirst.mockResolvedValue(basePurchased());
       // findFirst với isDeleted:false → null (review cũ đã bị soft-delete)
       mockPrisma.courseReview.findFirst.mockResolvedValue(null);
 

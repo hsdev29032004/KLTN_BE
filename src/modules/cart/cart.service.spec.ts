@@ -25,7 +25,7 @@ describe('CartService', () => {
   beforeEach(async () => {
     mockPrisma = {
       course: { findMany: jest.fn() },
-      userCourse: { findMany: jest.fn() },
+      detailInvoices: { findMany: jest.fn() },
       cartItem: {
         findMany: jest.fn(),
         createMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -63,7 +63,7 @@ describe('CartService', () => {
       const c2 = baseCourse('c2');
 
       mockPrisma.course.findMany.mockResolvedValue([c1, c2]);
-      mockPrisma.userCourse.findMany.mockResolvedValue([]);
+      mockPrisma.detailInvoices.findMany.mockResolvedValue([]);
       // c1 đã trong giỏ, c2 chưa
       mockPrisma.cartItem.findMany.mockResolvedValue([{ courseId: 'c1' }]);
       mockPrisma.cartItem.createMany.mockResolvedValue({ count: 1 });
@@ -81,7 +81,7 @@ describe('CartService', () => {
 
     it('UN_CART_4 – Course đã mua → bỏ qua, added:0', async () => {
       mockPrisma.course.findMany.mockResolvedValue([baseCourse('c1')]);
-      mockPrisma.userCourse.findMany.mockResolvedValue([{ courseId: 'c1' }]);
+      mockPrisma.detailInvoices.findMany.mockResolvedValue([{ courseId: 'c1' }]);
 
       const result = await service.addToCart(userId, ['c1']);
 

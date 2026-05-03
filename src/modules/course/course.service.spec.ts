@@ -25,11 +25,10 @@ const mockPrisma = {
   exam: { findMany: jest.fn(), count: jest.fn(), updateMany: jest.fn() },
   examQuestion: { count: jest.fn() },
   courseApproval: { create: jest.fn(), updateMany: jest.fn() },
-  userCourse: { findMany: jest.fn(), findFirst: jest.fn() },
+  detailInvoices: { create: jest.fn(), findMany: jest.fn(), findFirst: jest.fn() },
   conversation: { create: jest.fn() },
   conversationMember: { create: jest.fn() },
   invoices: { create: jest.fn(), update: jest.fn() },
-  detailInvoices: { create: jest.fn() },
   $transaction: jest.fn(),
 };
 
@@ -207,7 +206,7 @@ describe('CourseService', () => {
       mockPrisma.course.findUnique.mockResolvedValue({
         ...baseCourse(),
         user: {}, publisher: null, courseTopics: [], lessons: [],
-        reviews: [], exams: [], _count: { reviews: 0, userCourses: 0 }, approvals: [],
+        reviews: [], exams: [], _count: { reviews: 0, detail_invoices: 0 }, approvals: [],
       });
 
       const res = await service.findBySlugOrId('course-1', user as any);
@@ -330,12 +329,12 @@ describe('CourseService', () => {
     it('UN_CRS_19 – courseIds rỗng', async () => {
       await expect(service.purchaseCourses('user-1', [], '127.0.0.1'))
         .rejects.toThrow(new BadRequestException('Danh sách khóa học rỗng'));
-      expect(mockPrisma.userCourse.findMany).not.toHaveBeenCalled();
+      expect(mockPrisma.detailInvoices.findMany).not.toHaveBeenCalled();
     });
 
     it('UN_CRS_20 – Mua khóa học của chính mình', async () => {
       // chưa mua bao giờ (không phát hiện duplicate)
-      mockPrisma.userCourse.findMany.mockResolvedValue([]);
+      mockPrisma.detailInvoices.findMany.mockResolvedValue([]);
       // course do chính userId='user-1' sở hữu
       mockPrisma.course.findMany.mockResolvedValue([
         { id: 'course-1', price: 299000, userId: 'user-1', commissionRate: 10 },
