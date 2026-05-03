@@ -34,6 +34,7 @@ const COURSE_LIST_SELECT = {
   thumbnail: true,
   price: true,
   commissionRate: true,
+  newCommissionRate: true,
   star: true,
   status: true,
   studentCount: true,
@@ -997,6 +998,8 @@ export class CourseService {
     const data: any = { ...dto };
     // Xóa topicIds khỏi data trước khi update course (xử lý riêng bên dưới)
     delete data.topicIds;
+    // Xóa commissionRate khỏi data — xử lý riêng theo logic duyệt bên dưới
+    delete data.commissionRate;
 
     // Coerce price to number for updates (FormData sends strings)
     if (dto.price !== undefined && dto.price !== null) {
@@ -1005,11 +1008,31 @@ export class CourseService {
       data.price = p;
     }
 
-    // Coerce commissionRate for updates if provided
+    // ── Xử lý thay đổi commissionRate ────────────────────────────────────────
+    let newCommissionNum: number | undefined = undefined;
     if ((dto as any).commissionRate !== undefined && (dto as any).commissionRate !== null) {
       const c = Number((dto as any).commissionRate);
-      if (Number.isNaN(c) || c < 0 || c > 100) throw new BadRequestException('Tỷ lệ hoa hồng không hợp lệ (0-100)');
-      data.commissionRate = c;
+      if (Number.isNaN(c) || c < 0 || c > 100)
+        throw new BadRequestException('Tỷ lệ hoa hồng không hợp lệ (0-100)');
+
+      const currentRate = Number(course.commissionRate);
+      if (c !== currentRate) {
+        newCommissionNum = c;
+      }
+    }
+
+    // Nếu course đang draft hoặc rejected → cập nhật commissionRate trực tiếp, không cần duyệt
+    const isFreely =
+      course.status === CourseStatus.draft ||
+      course.status === CourseStatus.rejected;
+
+    if (newCommissionNum !== undefined) {
+      if (isFreely) {
+        data.commissionRate = newCommissionNum;
+      } else {
+        // Các trạng thái khác (published, need_update) → lưu vào newCommissionRate và tạo approval
+        data.newCommissionRate = newCommissionNum;
+      }
     }
 
     if (thumbnailFile) {
@@ -1036,6 +1059,24 @@ export class CourseService {
       where: { id: courseId },
       data,
     });
+
+    // Tạo CourseApproval khi commission thay đổi và cần duyệt (không phải draft/rejected)
+    if (newCommissionNum !== undefined && !isFreely) {
+      // Chuyển trạng thái: published → update, need_update giữ nguyên
+      if (course.status === CourseStatus.published) {
+        await this.prisma.course.update({
+          where: { id: courseId },
+          data: { status: CourseStatus.update },
+        });
+      }
+      await this.prisma.courseApproval.create({
+        data: {
+          courseId,
+          teacherId: userId,
+          description: 'Cập nhật hoa hồng',
+        },
+      });
+    }
 
     // Đồng bộ chủ đề nếu topicIds được truyền vào (kể cả mảng rỗng để xóa hết)
     if (dto.topicIds !== undefined) {
@@ -1417,7 +1458,7 @@ export class CourseService {
   async publishCourse(adminId: string, courseId: string) {
     const course = await this.prisma.course.findFirst({
       where: { id: courseId, isDeleted: false },
-    });
+    }) as any;
     if (!course) throw new NotFoundException('Khóa học không tồn tại');
 
     if (
@@ -1438,6 +1479,10 @@ export class CourseService {
           status: CourseStatus.published,
           publishedBy: adminId,
           publishedAt: isFirstPublish ? now : course.publishedAt,
+          // Áp dụng newCommissionRate nếu có
+          ...(course.newCommissionRate !== null
+            ? { commissionRate: course.newCommissionRate, newCommissionRate: null }
+            : {}),
         },
       });
 

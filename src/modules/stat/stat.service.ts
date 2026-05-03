@@ -1035,7 +1035,10 @@ export class StatService {
         where: {
           courses: {
             some: {
-              course: { isDeleted: false, status: 'published' },
+              course: {
+              isDeleted: false,
+              status: { in: ['published', 'need_update', 'update'] },
+            },
             },
           },
         },
@@ -1045,7 +1048,10 @@ export class StatService {
           slug: true,
           courses: {
             where: {
-              course: { isDeleted: false, status: 'published' },
+              course: {
+              isDeleted: false,
+              status: { in: ['published', 'need_update', 'update'] },
+            },
             },
             select: {
               course: {

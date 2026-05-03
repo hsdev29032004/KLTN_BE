@@ -99,6 +99,7 @@ model Course {
   name            String
   price           Int
   commissionRate  Decimal           @default(0) @db.Decimal(5, 2)
+  newCommissionRate Decimal?        @db.Decimal(5, 2)
   thumbnail       String
   content         String
   slug            String            @unique
