@@ -848,6 +848,11 @@ export class CourseService {
       if (Number.isNaN(priceNum))
         throw new BadRequestException('Giá không hợp lệ');
     }
+
+    if(dto.price < 5000) {
+      throw new BadRequestException('Giá khóa học phải tối thiểu 5000 VND');
+    }
+
     // Coerce commission rate to number and validate
     let commissionNum: number | undefined = undefined;
     if (
@@ -1050,6 +1055,9 @@ export class CourseService {
       }
     }
 
+    if(dto.price !== undefined && dto.price < 5000) {
+      throw new BadRequestException('Giá khóa học phải tối thiểu 5000 VND');
+    }
     // Nếu course đang draft hoặc rejected → cập nhật commissionRate trực tiếp, không cần duyệt
     const isFreely =
       course.status === CourseStatus.draft ||
