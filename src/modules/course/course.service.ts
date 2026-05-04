@@ -1698,7 +1698,7 @@ export class CourseService {
   // Validate that draft exams in this course meet their difficulty quotas
   private async validateExamQuestionCounts(courseId: string) {
     const draftExams = await this.prisma.exam.findMany({
-      where: { courseId, status: LessonStatus.draft, isDeleted: false },
+      where: { courseId, isDeleted: false },
       select: {
         id: true,
         name: true,
