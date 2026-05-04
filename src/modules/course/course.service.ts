@@ -506,9 +506,11 @@ export class CourseService {
       !!user.role?.name &&
       user.role.name !== ROLE_NAME.USER &&
       user.role.name !== ROLE_NAME.TEACHER;
-    let isPrivileged = isOwner || isSpecialRole;
+    // isPrivileged: chỉ owner và admin được xem toàn bộ status (draft, pending...)
+    const isPrivileged = isOwner || isSpecialRole;
 
-    // If not privileged by role/ownership, allow purchased users full access
+    // isPurchased: học viên đã mua => canAccess = true nhưng vẫn chỉ thấy published/outdated
+    let isPurchased = false;
     if (!isPrivileged && user) {
       const purchased = await this.prisma.detailInvoices.findFirst({
         where: {
@@ -517,7 +519,7 @@ export class CourseService {
         },
         select: { id: true },
       });
-      if (purchased) isPrivileged = true;
+      if (purchased) isPurchased = true;
     }
 
     const lessonWhere = isPrivileged
@@ -647,22 +649,10 @@ export class CourseService {
       },
     });
 
-    // For non-privileged users, additionally check if they purchased the course
-    let allowFullAccess = isPrivileged;
-    if (!allowFullAccess && user) {
-      const purchased = await this.prisma.detailInvoices.findFirst({
-        where: {
-          courseId: course.id,
-          invoices: { userId: user.id, status: 'purchased' },
-        },
-      });
-      if (purchased) allowFullAccess = true;
-    }
-
     return {
       message: 'Lấy thông tin khóa học thành công',
       data: course,
-      canAccess: allowFullAccess,
+      canAccess: isPrivileged || isPurchased,
     };
   }
 
