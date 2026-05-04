@@ -10,24 +10,27 @@ import type { IUser } from '@/shared/types/user.type';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
   @PublicAPI()
   @Post('login')
-  async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
+  async login(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const result = await this.authService.login(loginDto);
 
     res.cookie('access_token', result.accessToken, {
       httpOnly: true,
       secure: false,
-      sameSite: 'lax',
+      sameSite: 'none',
       maxAge: parseInt(process.env.ACCESSTOKEN_EXPIRE || '300') * 1000,
     });
 
     res.cookie('refresh_token', result.refreshToken, {
       httpOnly: true,
       secure: false,
-      sameSite: 'lax',
+      sameSite: 'none',
       maxAge: parseInt(process.env.REFRESHTOKEN_EXPIRE || '8640000') * 1000,
     });
 
@@ -68,7 +71,10 @@ export class AuthController {
 
   @PublicAPI()
   @Post('refresh-token')
-  async refreshToken(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  async refreshToken(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const refreshToken = req.cookies?.refresh_token;
 
     const result = await this.authService.refreshToken(refreshToken);
@@ -76,14 +82,14 @@ export class AuthController {
     res.cookie('access_token', result.accessToken, {
       httpOnly: true,
       secure: false,
-      sameSite: 'lax',
+      sameSite: 'none',
       maxAge: parseInt(process.env.ACCESSTOKEN_EXPIRE || '300') * 1000,
     });
 
     res.cookie('refresh_token', result.refreshToken, {
       httpOnly: true,
       secure: false,
-      sameSite: 'lax',
+      sameSite: 'none',
       maxAge: parseInt(process.env.REFRESHTOKEN_EXPIRE || '8640000') * 1000,
     });
 
