@@ -73,32 +73,35 @@ export class ExamService {
     if ((dto as any).numNormal !== undefined) updateData.numNormal = (dto as any).numNormal;
     if ((dto as any).numHard !== undefined) updateData.numHard = (dto as any).numHard;
 
-    // Validate new configuration values
-    const newNumEasy = (dto as any).numEasy !== undefined ? Number((dto as any).numEasy) : Number(exam.numEasy ?? 0);
-    const newNumNormal = (dto as any).numNormal !== undefined ? Number((dto as any).numNormal) : Number(exam.numNormal ?? 0);
-    const newNumHard = (dto as any).numHard !== undefined ? Number((dto as any).numHard) : Number(exam.numHard ?? 0);
-    if ([newNumEasy, newNumNormal, newNumHard].some((n) => Number.isNaN(n) || n < 0)) {
-      throw new BadRequestException('Số lượng câu hỏi trong đề thi không hợp lệ');
-    }
-    const totalRequested = newNumEasy + newNumNormal + newNumHard;
-    if (totalRequested <= 0) {
-      throw new BadRequestException('Số lượng câu hỏi trong đề thi không hợp lệ');
-    }
+    // Đề thi draft: bỏ qua validate số lượng câu hỏi, cho phép sửa thoải mái
+    if (exam.status !== LessonStatus.draft) {
+      // Validate new configuration values
+      const newNumEasy = (dto as any).numEasy !== undefined ? Number((dto as any).numEasy) : Number(exam.numEasy ?? 0);
+      const newNumNormal = (dto as any).numNormal !== undefined ? Number((dto as any).numNormal) : Number(exam.numNormal ?? 0);
+      const newNumHard = (dto as any).numHard !== undefined ? Number((dto as any).numHard) : Number(exam.numHard ?? 0);
+      if ([newNumEasy, newNumNormal, newNumHard].some((n) => Number.isNaN(n) || n < 0)) {
+        throw new BadRequestException('Số lượng câu hỏi trong đề thi không hợp lệ');
+      }
+      const totalRequested = newNumEasy + newNumNormal + newNumHard;
+      if (totalRequested <= 0) {
+        throw new BadRequestException('Số lượng câu hỏi trong đề thi không hợp lệ');
+      }
 
-    const [availEasy, availNormal, availHard] = await Promise.all([
-      this.prisma.examQuestion.count({ where: { examId, isDeleted: false, difficulty: 'easy' } }),
-      this.prisma.examQuestion.count({ where: { examId, isDeleted: false, difficulty: 'normal' } }),
-      this.prisma.examQuestion.count({ where: { examId, isDeleted: false, difficulty: 'hard' } }),
-    ]);
+      const [availEasy, availNormal, availHard] = await Promise.all([
+        this.prisma.examQuestion.count({ where: { examId, isDeleted: false, difficulty: 'easy' } }),
+        this.prisma.examQuestion.count({ where: { examId, isDeleted: false, difficulty: 'normal' } }),
+        this.prisma.examQuestion.count({ where: { examId, isDeleted: false, difficulty: 'hard' } }),
+      ]);
 
-    if (availEasy < newNumEasy) {
-      throw new BadRequestException(`Đề thi thiếu câu dễ: cần ${newNumEasy}, hiện có ${availEasy}`);
-    }
-    if (availNormal < newNumNormal) {
-      throw new BadRequestException(`Đề thi thiếu câu bình thường: cần ${newNumNormal}, hiện có ${availNormal}`);
-    }
-    if (availHard < newNumHard) {
-      throw new BadRequestException(`Đề thi thiếu câu khó: cần ${newNumHard}, hiện có ${availHard}`);
+      if (availEasy < newNumEasy) {
+        throw new BadRequestException(`Đề thi thiếu câu dễ: cần ${newNumEasy}, hiện có ${availEasy}`);
+      }
+      if (availNormal < newNumNormal) {
+        throw new BadRequestException(`Đề thi thiếu câu bình thường: cần ${newNumNormal}, hiện có ${availNormal}`);
+      }
+      if (availHard < newNumHard) {
+        throw new BadRequestException(`Đề thi thiếu câu khó: cần ${newNumHard}, hiện có ${availHard}`);
+      }
     }
 
     const updated = await this.prisma.exam.update({
