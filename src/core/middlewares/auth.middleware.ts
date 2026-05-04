@@ -69,14 +69,14 @@ export class AuthMiddleware implements NestMiddleware {
         // Set lại cookie
         res.cookie('access_token', refreshResult.accessToken, {
           httpOnly: true,
-          secure: false,
+          secure: true,
           sameSite: 'none',
           maxAge: parseInt(process.env.ACCESSTOKEN_EXPIRE || '300') * 1000,
         });
 
         res.cookie('refresh_token', refreshResult.refreshToken, {
           httpOnly: true,
-          secure: false,
+          secure: true,
           sameSite: 'none',
           maxAge: parseInt(process.env.REFRESHTOKEN_EXPIRE || '8640000') * 1000,
         });

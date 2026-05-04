@@ -22,14 +22,14 @@ export class AuthController {
 
     res.cookie('access_token', result.accessToken, {
       httpOnly: true,
-      secure: false,
+      secure: true,
       sameSite: 'none',
       maxAge: parseInt(process.env.ACCESSTOKEN_EXPIRE || '300') * 1000,
     });
 
     res.cookie('refresh_token', result.refreshToken, {
       httpOnly: true,
-      secure: false,
+      secure: true,
       sameSite: 'none',
       maxAge: parseInt(process.env.REFRESHTOKEN_EXPIRE || '8640000') * 1000,
     });
@@ -81,14 +81,14 @@ export class AuthController {
 
     res.cookie('access_token', result.accessToken, {
       httpOnly: true,
-      secure: false,
+      secure: true,
       sameSite: 'none',
       maxAge: parseInt(process.env.ACCESSTOKEN_EXPIRE || '300') * 1000,
     });
 
     res.cookie('refresh_token', result.refreshToken, {
       httpOnly: true,
-      secure: false,
+      secure: true,
       sameSite: 'none',
       maxAge: parseInt(process.env.REFRESHTOKEN_EXPIRE || '8640000') * 1000,
     });
