@@ -834,9 +834,16 @@ export class CourseService {
     }
     // Coerce commission rate to number and validate
     let commissionNum: number | undefined = undefined;
-    if ((dto as any).commissionRate !== undefined && (dto as any).commissionRate !== null) {
+    if (
+      (dto as any).commissionRate !== undefined &&
+      (dto as any).commissionRate !== null
+    ) {
       commissionNum = Number((dto as any).commissionRate);
-      if (Number.isNaN(commissionNum) || commissionNum < 0 || commissionNum > 100) {
+      if (
+        Number.isNaN(commissionNum) ||
+        commissionNum < 0 ||
+        commissionNum > 100
+      ) {
         throw new BadRequestException('Tỷ lệ hoa hồng không hợp lệ (0-100)');
       }
     } else {
@@ -874,7 +881,10 @@ export class CourseService {
       });
       if (validTopics.length > 0) {
         await this.prisma.courseTopic.createMany({
-          data: validTopics.map((t) => ({ courseId: course.id, topicId: t.id })),
+          data: validTopics.map((t) => ({
+            courseId: course.id,
+            topicId: t.id,
+          })),
           skipDuplicates: true,
         });
       }
@@ -1010,7 +1020,10 @@ export class CourseService {
 
     // ── Xử lý thay đổi commissionRate ────────────────────────────────────────
     let newCommissionNum: number | undefined = undefined;
-    if ((dto as any).commissionRate !== undefined && (dto as any).commissionRate !== null) {
+    if (
+      (dto as any).commissionRate !== undefined &&
+      (dto as any).commissionRate !== null
+    ) {
       const c = Number((dto as any).commissionRate);
       if (Number.isNaN(c) || c < 0 || c > 100)
         throw new BadRequestException('Tỷ lệ hoa hồng không hợp lệ (0-100)');
@@ -1456,9 +1469,9 @@ export class CourseService {
   // ── Admin Publish Course ──────────────────────────────────────────────────
 
   async publishCourse(adminId: string, courseId: string) {
-    const course = await this.prisma.course.findFirst({
+    const course = (await this.prisma.course.findFirst({
       where: { id: courseId, isDeleted: false },
-    }) as any;
+    })) as any;
     if (!course) throw new NotFoundException('Khóa học không tồn tại');
 
     if (
@@ -1481,7 +1494,10 @@ export class CourseService {
           publishedAt: isFirstPublish ? now : course.publishedAt,
           // Áp dụng newCommissionRate nếu có
           ...(course.newCommissionRate !== null
-            ? { commissionRate: course.newCommissionRate, newCommissionRate: null }
+            ? {
+                commissionRate: course.newCommissionRate,
+                newCommissionRate: null,
+              }
             : {}),
         },
       });
@@ -1683,22 +1699,48 @@ export class CourseService {
   private async validateExamQuestionCounts(courseId: string) {
     const draftExams = await this.prisma.exam.findMany({
       where: { courseId, status: LessonStatus.draft, isDeleted: false },
-      select: { id: true, name: true, numEasy: true, numNormal: true, numHard: true },
+      select: {
+        id: true,
+        name: true,
+        numEasy: true,
+        numNormal: true,
+        numHard: true,
+      },
     });
 
     const errors: string[] = [];
 
     for (const ex of draftExams) {
+      const requiredEasy = ex.numEasy ?? 0;
+      const requiredNormal = ex.numNormal ?? 0;
+      const requiredHard = ex.numHard ?? 0;
+      const totalRequired = requiredEasy + requiredNormal + requiredHard;
+
+      // Đề thi phải được cấu hình ít nhất 1 câu hỏi
+      if (totalRequired === 0) {
+        errors.push(`Đề thi "${ex.name}" chưa được cấu hình số lượng câu hỏi`);
+        continue;
+      }
+
       const [easyCount, normalCount, hardCount] = await Promise.all([
-        this.prisma.examQuestion.count({ where: { examId: ex.id, difficulty: 'easy', isDeleted: false } }),
-        this.prisma.examQuestion.count({ where: { examId: ex.id, difficulty: 'normal', isDeleted: false } }),
-        this.prisma.examQuestion.count({ where: { examId: ex.id, difficulty: 'hard', isDeleted: false } }),
+        this.prisma.examQuestion.count({
+          where: { examId: ex.id, difficulty: 'easy', isDeleted: false },
+        }),
+        this.prisma.examQuestion.count({
+          where: { examId: ex.id, difficulty: 'normal', isDeleted: false },
+        }),
+        this.prisma.examQuestion.count({
+          where: { examId: ex.id, difficulty: 'hard', isDeleted: false },
+        }),
       ]);
 
       const need: string[] = [];
-      if ((ex.numEasy ?? 0) > easyCount) need.push(`cần ${(ex.numEasy ?? 0) - easyCount} câu dễ`);
-      if ((ex.numNormal ?? 0) > normalCount) need.push(`cần ${(ex.numNormal ?? 0) - normalCount} câu bình thường`);
-      if ((ex.numHard ?? 0) > hardCount) need.push(`cần ${(ex.numHard ?? 0) - hardCount} câu khó`);
+      if (requiredEasy > easyCount)
+        need.push(`cần ${requiredEasy - easyCount} câu dễ`);
+      if (requiredNormal > normalCount)
+        need.push(`cần ${requiredNormal - normalCount} câu bình thường`);
+      if (requiredHard > hardCount)
+        need.push(`cần ${requiredHard - hardCount} câu khó`);
 
       if (need.length > 0) {
         errors.push(`Đề thi "${ex.name}" thiếu: ${need.join(', ')}`);
@@ -1706,7 +1748,9 @@ export class CourseService {
     }
 
     if (errors.length > 0) {
-      throw new BadRequestException(`Không thể gửi xét duyệt: ${errors.join('; ')}`);
+      throw new BadRequestException(
+        `Không thể gửi xét duyệt: ${errors.join('; ')}`,
+      );
     }
   }
 
