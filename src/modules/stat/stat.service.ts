@@ -1030,15 +1030,16 @@ export class StatService {
         where: { isDeleted: false, status: 'published' },
       }),
 
-      // Lấy tất cả topic có ít nhất 1 khóa học published, kèm 4 khóa học mỗi topic
+      // Lấy tất cả topic có ít nhất 1 khóa học published
+      // Lấy nhiều hơn 4 courses/topic để đảm bảo đủ sau khi dedup
       this.prisma.topic.findMany({
         where: {
           courses: {
             some: {
               course: {
-              isDeleted: false,
-              status: { in: ['published', 'need_update', 'update'] },
-            },
+                isDeleted: false,
+                status: { in: ['published', 'need_update', 'update'] },
+              },
             },
           },
         },
@@ -1049,9 +1050,9 @@ export class StatService {
           courses: {
             where: {
               course: {
-              isDeleted: false,
-              status: { in: ['published', 'need_update', 'update'] },
-            },
+                isDeleted: false,
+                status: { in: ['published', 'need_update', 'update'] },
+              },
             },
             select: {
               course: {
@@ -1070,18 +1071,41 @@ export class StatService {
               },
             },
             orderBy: { course: { studentCount: 'desc' } },
-            take: 4,
+            // Lấy dư để bù sau khi loại khóa học trùng
+            take: 12,
           },
         },
       }),
     ]);
 
-    // Chọn ngẫu nhiên 3 topic (shuffle rồi lấy 3 đầu)
+    // Shuffle topics, chọn tối đa 3 topic có đủ khóa học sau dedup
     const shuffled = topics
       .map((t) => ({ sort: Math.random(), value: t }))
       .sort((a, b) => a.sort - b.sort)
       .map((t) => t.value);
-    const selectedTopics = shuffled.slice(0, 3);
+
+    const seenCourseIds = new Set<string>();
+    const selectedTopics: {
+      id: string;
+      name: string;
+      slug: string;
+      uniqueCourses: (typeof shuffled)[0]['courses'][0]['course'][];
+    }[] = [];
+
+    for (const topic of shuffled) {
+      if (selectedTopics.length >= 3) break;
+
+      // Lọc bỏ những khóa học đã xuất hiện ở topic trước
+      const uniqueCourses = topic.courses
+        .filter((ct) => !seenCourseIds.has(ct.course.id))
+        .slice(0, 4)
+        .map((ct) => ct.course);
+
+      if (uniqueCourses.length === 0) continue;
+
+      uniqueCourses.forEach((c) => seenCourseIds.add(c.id));
+      selectedTopics.push({ id: topic.id, name: topic.name, slug: topic.slug, uniqueCourses });
+    }
 
     return {
       message: 'Lấy dữ liệu trang chủ thành công',
@@ -1092,7 +1116,7 @@ export class StatService {
         },
         topicCourses: selectedTopics.map((topic) => ({
           topic: { id: topic.id, name: topic.name, slug: topic.slug },
-          courses: topic.courses.map((ct) => ct.course),
+          courses: topic.uniqueCourses,
         })),
       },
     };
