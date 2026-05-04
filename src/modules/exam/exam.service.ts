@@ -242,15 +242,28 @@ export class ExamService {
     if (question.exam.course.userId !== userId)
       throw new ForbiddenException('Bạn không có quyền thao tác câu hỏi này');
 
-    const updateData: any = { ...dto };
-    if ((dto as any).difficulty !== undefined) updateData.difficulty = (dto as any).difficulty;
+    // Soft-delete bản ghi cũ để không ảnh hưởng lịch sử bài thi đã làm,
+    // sau đó tạo bản ghi mới với nội dung đã cập nhật
+    const [, created] = await this.prisma.$transaction([
+      this.prisma.examQuestion.update({
+        where: { id: questionId },
+        data: { isDeleted: true },
+      }),
+      this.prisma.examQuestion.create({
+        data: {
+          examId: question.examId,
+          content: (dto as any).content ?? question.content,
+          optionA: (dto as any).optionA ?? question.optionA,
+          optionB: (dto as any).optionB ?? question.optionB,
+          optionC: (dto as any).optionC ?? question.optionC,
+          optionD: (dto as any).optionD ?? question.optionD,
+          correctAnswer: (dto as any).correctAnswer ?? question.correctAnswer,
+          difficulty: (dto as any).difficulty ?? question.difficulty,
+        },
+      }),
+    ]);
 
-    const updated = await this.prisma.examQuestion.update({
-      where: { id: questionId },
-      data: updateData,
-    });
-
-    return { message: 'Cập nhật câu hỏi thành công', data: updated };
+    return { message: 'Cập nhật câu hỏi thành công', data: created };
   }
 
   // ── Teacher: Xóa câu hỏi ─────────────────────────────────────────────────
